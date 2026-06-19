@@ -30,12 +30,17 @@ import {
   Star,
   AlertTriangle,
   LayoutDashboard,
-  RefreshCw
+  RefreshCw,
+  ChevronUp,
+  UserCircle,
+  ImagePlus,
+  Trash2,
 } from 'lucide-react';
 import { Machine, Operator, User as UserProfile, ToastMessage, MachineStatus, DepartamentoApi, CalificacionApi } from './types';
 import { fetchMachines, fetchOperators, mapMaquinaToMachine } from './data';
 import {
   ApiError,
+  actualizarMaquina,
   agregarFavorito,
   crearMaquina,
   crearOperador,
@@ -56,8 +61,10 @@ import {
   uiRoleToApiRol,
   usuarioApiToUser,
 } from './lib/auth';
+import { subirImagenACloudinary } from './lib/cloudinary';
+import ProfilePage from './ProfilePage';
 
-type Page = 'home' | 'operators' | 'publish' | 'dashboard';
+type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
 
 export default function App() {
   // Page states: 'home' | 'operators' | 'publish' | 'dashboard'
@@ -122,22 +129,39 @@ export default function App() {
   // Mobile menu open / close
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Top-right profile dropdown (desktop navbar)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  // Always-visible machine filters (type, department, max price, price unit)
+  const [filterTipo, setFilterTipo] = useState('Todos');
+  const [filterDepartamentoId, setFilterDepartamentoId] = useState<number | 'todos'>('todos');
+  const [filterPrecioMax, setFilterPrecioMax] = useState('');
+  const [filterTipoPrecio, setFilterTipoPrecio] = useState<'todos' | 'hora' | 'dia'>('todos');
+
   // Form State for Publish Equipment Page
   const [publishStep, setPublishStep] = useState<1 | 2 | 3>(1);
   const [publishSubmitting, setPublishSubmitting] = useState(false);
+  const [editingMachineId, setEditingMachineId] = useState<string | null>(null);
   const [formCategory, setFormCategory] = useState('Excavadora');
   const [formBrand, setFormBrand] = useState('');
   const [formModel, setFormModel] = useState('');
   const [formYear, setFormYear] = useState('');
+  const [formCapacidad, setFormCapacidad] = useState('');
+  const [formHorometro, setFormHorometro] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formDepartamentoId, setFormDepartamentoId] = useState<number | null>(null);
   const [formMunicipality, setFormMunicipality] = useState('');
   const [formPrice, setFormPrice] = useState('');
-  const [formPhotos, setFormPhotos] = useState<string[]>([
-    'https://images.unsplash.com/photo-1579684389782-64d84b5e901d?w=600&q=80',
-    'https://images.unsplash.com/photo-1541625602330-2277a4c46182?w=600&q=80'
-  ]);
+  const [formTipoPrecio, setFormTipoPrecio] = useState<'hora' | 'dia'>('dia');
   const [formIncludesOperator, setFormIncludesOperator] = useState(false);
+  const [formIncludesFuel, setFormIncludesFuel] = useState(false);
+  const [formContactName, setFormContactName] = useState('');
+  const [formContactPhone, setFormContactPhone] = useState('');
+
+  // Photo upload: local file + preview, uploaded to Cloudinary on submit
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
 
   // Email Newsletter state
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -214,14 +238,58 @@ export default function App() {
       });
   }, [loggedInUser]);
 
-  // Guard the owner-only dashboard route.
+  // Guard the owner-only dashboard route and the login-only profile route.
   useEffect(() => {
     if (currentPage === 'dashboard' && (!loggedInUser || loggedInUser.role !== 'owner')) {
       setCurrentPage('home');
       addToast('Acceso restringido: el panel es solo para propietarios.', 'error');
     }
+    if (currentPage === 'profile' && !loggedInUser) {
+      setCurrentPage('home');
+      setAuthTab('login');
+      setIsAuthModalOpen(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, loggedInUser]);
+
+  /* ───────────────────────── PHOTO UPLOAD (publish form) ───────────────────────── */
+
+  const addPhotoFiles = (files: FileList | File[]) => {
+    const newFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (newFiles.length === 0) return;
+    setPhotoFiles((prev) => [...prev, ...newFiles]);
+    newFiles.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      setPhotoPreviews((prev) => [...prev, url]);
+    });
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  /* ───────────────────────── NAVIGATION HELPERS ───────────────────────── */
+
+  const goToDashboardOrLogin = () => {
+    setIsUserMenuOpen(false);
+    if (loggedInUser) {
+      navigateTo('dashboard');
+    } else {
+      setAuthTab('login');
+      setIsAuthModalOpen(true);
+    }
+  };
+
+  const scrollToHowItWorks = () => {
+    if (currentPage !== 'home') {
+      navigateTo('home');
+      setTimeout(() => document.getElementById('how-it-works-anchor')?.scrollIntoView({ behavior: 'smooth' }), 50);
+    } else {
+      document.getElementById('how-it-works-anchor')?.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsMobileMenuOpen(false);
+  };
 
   // Fetch ratings for the machine currently open in the detail modal.
   useEffect(() => {
@@ -345,11 +413,15 @@ export default function App() {
       // Step 3 submission — validate before hitting the backend
       const priceNumber = Number(formPrice);
       if (!formPrice || Number.isNaN(priceNumber) || priceNumber <= 0) {
-        addToast('El precio por día debe ser un número positivo', 'error');
+        addToast('El precio debe ser un número positivo', 'error');
         return;
       }
       if (!formDepartamentoId) {
         addToast('Selecciona un departamento de ubicación', 'error');
+        return;
+      }
+      if (!formMunicipality.trim()) {
+        addToast('Indica el municipio o dirección exacta', 'error');
         return;
       }
 
@@ -357,32 +429,70 @@ export default function App() {
 
       setPublishSubmitting(true);
       try {
-        const maquinaCreada = await crearMaquina({
+        let imagenUrl: string | null = photoPreviews[0] && !photoFiles[0] ? photoPreviews[0] : null;
+        if (photoFiles.length > 0) {
+          // Only the first photo becomes the machine's primary imagen_url for now.
+          imagenUrl = await subirImagenACloudinary(photoFiles[0]);
+        }
+
+        const payload = {
           nombre: `${formCategory} ${formBrand} ${formModel}`.trim(),
           tipo: formCategory,
           descripcion: formDesc,
           precio_dia: priceNumber,
-          ubicacion: `${departamento?.nombre || ''}${formMunicipality ? ', ' + formMunicipality : ''}`,
+          tipo_precio: formTipoPrecio,
+          ubicacion: `${formMunicipality}, ${departamento?.nombre || ''}`,
           departamento_id: formDepartamentoId,
-          imagen_url: formPhotos[0] || null,
-        });
+          imagen_url: imagenUrl,
+          marca: formBrand || null,
+          capacidad: formCapacidad || null,
+          año: formYear ? Number(formYear) : null,
+          horometro: formHorometro || null,
+          incluye_operador: formIncludesOperator,
+          incluye_combustible: formIncludesFuel,
+          telefono_contacto: formContactPhone || null,
+          nombre_contacto: formContactName || null,
+        };
 
-        const newMachine = mapMaquinaToMachine(maquinaCreada);
-        setMachines((prev) => [newMachine, ...prev]);
-        addToast(`¡Excelente! El equipo ${newMachine.name} ha sido publicado y ya aparece en el catálogo.`, 'success');
+        const maquinaResultado = editingMachineId
+          ? await actualizarMaquina(Number(editingMachineId), payload)
+          : await crearMaquina(payload);
+
+        const resultMachine = mapMaquinaToMachine(maquinaResultado);
+        setMachines((prev) =>
+          editingMachineId
+            ? prev.map((m) => (m.id === editingMachineId ? resultMachine : m))
+            : [resultMachine, ...prev]
+        );
+        addToast(
+          editingMachineId
+            ? `El equipo ${resultMachine.name} fue actualizado correctamente.`
+            : `¡Excelente! El equipo ${resultMachine.name} ha sido publicado y ya aparece en el catálogo.`,
+          'success'
+        );
 
         // Reset state and direct back to list
         setPublishStep(1);
+        setEditingMachineId(null);
         setFormBrand('');
         setFormModel('');
         setFormYear('');
+        setFormCapacidad('');
+        setFormHorometro('');
         setFormDesc('');
         setFormDepartamentoId(null);
         setFormMunicipality('');
         setFormPrice('');
-        navigateTo('home');
+        setFormTipoPrecio('dia');
+        setFormIncludesOperator(false);
+        setFormIncludesFuel(false);
+        setFormContactName('');
+        setFormContactPhone('');
+        setPhotoFiles([]);
+        setPhotoPreviews([]);
+        navigateTo(loggedInUser.role === 'owner' ? 'dashboard' : 'home');
       } catch (error) {
-        const message = error instanceof ApiError ? error.message : 'No se pudo publicar el equipo';
+        const message = error instanceof Error ? error.message : 'No se pudo publicar el equipo';
         addToast(message, 'error');
       } finally {
         setPublishSubmitting(false);
@@ -552,64 +662,77 @@ export default function App() {
               })}
               
               <button
-                onClick={() => addToast('Pestaña informativa. Explore el catálogo o contrate operadores.', 'info')}
+                onClick={scrollToHowItWorks}
                 className="text-[13px] font-medium text-[#717171] hover:text-[#0F0F0F]"
               >
                 Cómo funciona
               </button>
-
-              {loggedInUser?.role === 'owner' && (
-                <button
-                  onClick={() => navigateTo('dashboard')}
-                  className={`text-[13px] font-medium transition-colors relative h-14 flex items-center gap-1.5 ${
-                    currentPage === 'dashboard' ? 'text-[#2B44C7] font-semibold' : 'text-[#717171] hover:text-[#0F0F0F]'
-                  }`}
-                >
-                  <LayoutDashboard size={14} /> Dashboard
-                  {currentPage === 'dashboard' && (
-                    <motion.div layoutId="nav-underline" className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#2B44C7]" />
-                  )}
-                </button>
-              )}
-
-              {loggedInUser ? (
-                <div className="flex items-center space-x-3 text-[13px] text-[#2B44C7] font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-[#16793A] animate-pulse"></span>
-                  <span>{loggedInUser.name}</span>
-                  <button
-                    onClick={handleLogout}
-                    className="text-[#991B1B] hover:underline hover:text-red-700 font-normal ml-2"
-                  >
-                    Salir
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setAuthTab('login'); setIsAuthModalOpen(true); }}
-                  className="text-[13px] font-medium text-[#717171] hover:text-[#0F0F0F]"
-                >
-                  Mi panel
-                </button>
-              )}
             </nav>
 
             {/* Right Side Buttons */}
             <div className="hidden md:flex items-center space-x-4">
               {!loggedInUser && (
-                <button 
+                <button
                   onClick={() => { setAuthTab('login'); setIsAuthModalOpen(true); }}
                   className="text-[13px] font-semibold text-[#0F0F0F] hover:text-[#2B44C7] px-3 py-1 cursor-pointer transition-colors"
                 >
                   Ingresar
                 </button>
               )}
-              
-              <button 
+
+              <button
                 onClick={() => navigateTo('publish')}
                 className="bg-[#E8A020] text-[#0F0F0F] font-semibold text-[13px] px-4 py-2 hover:bg-[#C88010] cursor-pointer transition-colors rounded-[6px]"
               >
                 Publicar máquina
               </button>
+
+              {/* Logged-in user dropdown: Mi Perfil / Mi Panel / Cerrar Sesión */}
+              {loggedInUser && (
+                <div className="relative">
+                  <button
+                    onClick={() => setIsUserMenuOpen((v) => !v)}
+                    className="flex items-center gap-2 text-[13px] font-semibold text-[#0F0F0F] hover:text-[#2B44C7] cursor-pointer"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-[#16793A]"></span>
+                    {loggedInUser.name}
+                    {isUserMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+
+                  <AnimatePresence>
+                    {isUserMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          className="absolute right-0 top-9 w-48 bg-white border border-[#E2E2DE] shadow-[0_8px_32px_rgba(0,0,0,.12)] z-50"
+                        >
+                          <button
+                            onClick={() => { setIsUserMenuOpen(false); navigateTo('profile'); }}
+                            className="w-full text-left text-[13px] font-medium text-[#3A3A3A] hover:bg-[#F5F4F0] px-4 py-2.5 flex items-center gap-2"
+                          >
+                            <UserCircle size={14} /> Mi Perfil
+                          </button>
+                          <button
+                            onClick={goToDashboardOrLogin}
+                            className="w-full text-left text-[13px] font-medium text-[#3A3A3A] hover:bg-[#F5F4F0] px-4 py-2.5 flex items-center gap-2"
+                          >
+                            <LayoutDashboard size={14} /> Mi Panel
+                          </button>
+                          <button
+                            onClick={() => { setIsUserMenuOpen(false); handleLogout(); }}
+                            className="w-full text-left text-[13px] font-medium text-[#991B1B] hover:bg-[#FEF2F2] px-4 py-2.5 flex items-center gap-2 border-t border-[#E2E2DE]"
+                          >
+                            <X size={14} /> Cerrar Sesión
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
 
             {/* Mobile Hamburger menu */}
@@ -646,24 +769,28 @@ export default function App() {
                   >
                     Operadores
                   </button>
-                  <button 
-                    onClick={() => { setIsMobileMenuOpen(false); addToast('Utilice el buscador para encontrar lo que necesite.', 'info'); }}
+                  <button
+                    onClick={scrollToHowItWorks}
                     className="text-left text-[14px] font-medium text-[#3A3A3A] py-1.5"
                   >
                     Cómo funciona
                   </button>
-                  
+
                   {loggedInUser ? (
                     <div className="pt-2 border-t border-[#E2E2DE] space-y-2">
                       <p className="text-[13px] text-[#2B44C7] font-semibold">Sesión: {loggedInUser.name}</p>
-                      {loggedInUser.role === 'owner' && (
-                        <button
-                          onClick={() => navigateTo('dashboard')}
-                          className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'dashboard' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
-                        >
-                          Dashboard
-                        </button>
-                      )}
+                      <button
+                        onClick={() => navigateTo('profile')}
+                        className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'profile' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                      >
+                        Mi Perfil
+                      </button>
+                      <button
+                        onClick={goToDashboardOrLogin}
+                        className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'dashboard' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                      >
+                        Mi Panel
+                      </button>
                       <button
                         onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
                         className="text-left text-[13px] text-[#991B1B] font-medium"
@@ -1515,11 +1642,38 @@ export default function App() {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                            CAPACIDAD
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej: 2.6 m3, 1.5 ton"
+                            value={formCapacidad}
+                            onChange={(e) => setFormCapacidad(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                            HORÓMETRO
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej: 447 horas o N/A"
+                            value={formHorometro}
+                            onChange={(e) => setFormHorometro(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                          />
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
                           DESCRIPCIÓN DE ESTADO Y CAPACIDADES
                         </label>
-                        <textarea 
+                        <textarea
                           rows={4}
                           required
                           placeholder="Describa el mantenimiento reciente, horas de uso, accesorios incluidos y características operativas..."
@@ -1550,30 +1704,61 @@ export default function App() {
                       </h3>
 
                       <p className="text-[#3A3A3A] text-[13px] leading-relaxed">
-                        Para validar el listado en la plataforma, proporcione al menos dos fotos reales de la maquinaria en buen estado y desde ángulos diferentes (Frontal y Lateral).
+                        Arrastra o selecciona fotos reales de la maquinaria. La primera foto será la imagen principal del anuncio.
                       </p>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        
-                        {/* Drag and drop mock file area */}
-                        <div className="border border-dashed border-[#B0B0B0] bg-[#F9F9F7] p-8 text-center flex flex-col items-center justify-center space-y-2 cursor-pointer hover:bg-[#F5F4F0] transition-colors">
-                          <Camera size={26} className="text-[#717171]" />
-                          <span className="text-[11px] font-bold text-[#0F0F0F] tracking-wide">FOTO VISTA FRONTAL *</span>
-                          <span className="text-[10px] text-[#717171]">Suelte o haga clic para subir</span>
+                      <label
+                        onDragOver={(e) => { e.preventDefault(); setIsDraggingPhoto(true); }}
+                        onDragLeave={() => setIsDraggingPhoto(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingPhoto(false);
+                          if (e.dataTransfer.files) addPhotoFiles(e.dataTransfer.files);
+                        }}
+                        className={`border border-dashed p-8 text-center flex flex-col items-center justify-center space-y-2 cursor-pointer transition-colors block ${
+                          isDraggingPhoto ? 'border-[#2B44C7] bg-[#EEF1FD]' : 'border-[#B0B0B0] bg-[#F9F9F7] hover:bg-[#F5F4F0]'
+                        }`}
+                      >
+                        <ImagePlus size={26} className="text-[#717171]" />
+                        <span className="text-[11px] font-bold text-[#0F0F0F] tracking-wide">ARRASTRA TUS FOTOS AQUÍ</span>
+                        <span className="text-[10px] text-[#717171]">o haz clic para seleccionar archivos</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => { if (e.target.files) addPhotoFiles(e.target.files); e.target.value = ''; }}
+                        />
+                      </label>
+
+                      {photoPreviews.length > 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                          {photoPreviews.map((src, i) => (
+                            <div key={src} className="relative aspect-square bg-[#E2E2DE] group overflow-hidden">
+                              <img src={src} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                              {i === 0 && (
+                                <span className="absolute top-1 left-1 bg-[#2B44C7] text-white text-[8px] font-bold uppercase px-1.5 py-0.5">
+                                  Principal
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removePhoto(i)}
+                                className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
+                      )}
 
-                        <div className="border border-dashed border-[#B0B0B0] bg-[#F9F9F7] p-8 text-center flex flex-col items-center justify-center space-y-2 cursor-pointer hover:bg-[#F5F4F0] transition-colors">
-                          <Camera size={26} className="text-[#717171]" />
-                          <span className="text-[11px] font-bold text-[#0F0F0F] tracking-wide">FOTO VISTA LATERAL *</span>
-                          <span className="text-[10px] text-[#717171]">Suelte o haga clic para subir</span>
+                      {photoPreviews.length === 0 && (
+                        <div className="flex items-center space-x-2 text-[12px] text-[#C88010]">
+                          <Info size={14} />
+                          <span>Aún no has agregado fotos. Puedes continuar, pero los anuncios con fotos reciben más contactos.</span>
                         </div>
-
-                      </div>
-
-                      <div className="flex items-center space-x-2 text-[12px] text-[#717171]">
-                        <Check size={14} className="text-[#16793A]" />
-                        <span>Imágenes por defecto cargadas de forma simulada. Las fotos se optimizarán bajo estándares de ingeniería.</span>
-                      </div>
+                      )}
                     </motion.div>
                   )}
 
@@ -1626,55 +1811,88 @@ export default function App() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
-                            TARIFA DE ALQUILER POR DÍA (USD)
+                            TARIFA DE ALQUILER (USD)
                           </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-3.5 text-[#0F0F0F] text-[13px] font-bold font-mono-imaq">$</span>
-                            <input
-                              type="number"
-                              required
-                              min={1}
-                              step="0.01"
-                              placeholder="Ej: 450"
-                              value={formPrice}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                // Reject negative input at the source; the final
-                                // positive-number check still runs on submit.
-                                if (v === '' || Number(v) >= 0) setFormPrice(v);
-                              }}
-                              className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 pl-8 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none font-mono-imaq"
-                            />
+                          <div className="flex">
+                            <div className="relative flex-1">
+                              <span className="absolute left-3 top-3.5 text-[#0F0F0F] text-[13px] font-bold font-mono-imaq">$</span>
+                              <input
+                                type="number"
+                                required
+                                min={1}
+                                step="0.01"
+                                placeholder="Ej: 450"
+                                value={formPrice}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (v === '' || Number(v) >= 0) setFormPrice(v);
+                                }}
+                                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 pl-8 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none font-mono-imaq"
+                              />
+                            </div>
+                            <select
+                              value={formTipoPrecio}
+                              onChange={(e) => setFormTipoPrecio(e.target.value as 'hora' | 'dia')}
+                              className="bg-[#F9F9F7] border border-l-0 border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium px-3 focus:outline-none cursor-pointer"
+                            >
+                              <option value="dia">por día</option>
+                              <option value="hora">por hora</option>
+                            </select>
                           </div>
                         </div>
 
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
-                            INCLUYE OPERADOR CERTIFICADO
-                          </label>
-                          <div className="flex items-center space-x-3 h-12 bg-[#F9F9F7] px-4 border border-[#E2E2DE]">
-                            <input 
+                        <div className="flex items-end gap-3">
+                          <div className="flex items-center space-x-2 h-12 bg-[#F9F9F7] px-3 border border-[#E2E2DE] flex-1">
+                            <input
                               type="checkbox"
                               checked={formIncludesOperator}
                               onChange={(e) => setFormIncludesOperator(e.target.checked)}
                               className="w-4 h-4 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
                               id="includes-operator"
                             />
-                            <label htmlFor="includes-operator" className="text-[13px] font-medium text-[#3A3A3A] cursor-pointer">
-                              Sí, tarifa incluye operador
+                            <label htmlFor="includes-operator" className="text-[12px] font-medium text-[#3A3A3A] cursor-pointer">
+                              Incluye operador
+                            </label>
+                          </div>
+                          <div className="flex items-center space-x-2 h-12 bg-[#F9F9F7] px-3 border border-[#E2E2DE] flex-1">
+                            <input
+                              type="checkbox"
+                              checked={formIncludesFuel}
+                              onChange={(e) => setFormIncludesFuel(e.target.checked)}
+                              className="w-4 h-4 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                              id="includes-fuel"
+                            />
+                            <label htmlFor="includes-fuel" className="text-[12px] font-medium text-[#3A3A3A] cursor-pointer">
+                              Incluye combustible
                             </label>
                           </div>
                         </div>
                       </div>
 
-                      <div className="h-40 w-full bg-[#E2E2DE] relative overflow-hidden">
-                        {/* Map Mock representation */}
-                        <div className="absolute inset-0 bg-[#DEE1DC] flex flex-col items-center justify-center p-4">
-                          <MapPin size={24} className="text-[#2B44C7] mb-1" />
-                          <span className="text-[11px] font-bold text-[#0F0F0F] uppercase">GEOLOCALIZACIÓN REQUERIDA</span>
-                          <span className="text-[10px] text-[#717171]">
-                            Alineándose por GPS a {departments.find((d) => d.id === formDepartamentoId)?.nombre || 'El Salvador'}
-                          </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                            NOMBRE DE CONTACTO
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Persona o empresa de contacto"
+                            value={formContactName}
+                            onChange={(e) => setFormContactName(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                            TELÉFONO DE CONTACTO
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Puede ser distinto al de tu cuenta"
+                            value={formContactPhone}
+                            onChange={(e) => setFormContactPhone(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                          />
                         </div>
                       </div>
                     </motion.div>

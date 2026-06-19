@@ -111,5 +111,7 @@ export function usuarioApiToUser(usuario: UsuarioApi): User {
     role: apiRolToUiRole(usuario.rol),
     whatsapp: usuario.telefono || undefined,
     verificado: usuario.verificado,
+    fotoUrl: usuario.foto_url,
+    creadoEn: usuario.creado_en,
   };
 }

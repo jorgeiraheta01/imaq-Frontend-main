@@ -8,11 +8,14 @@ export interface MachineSpecs {
 
 export type MachineStatus = 'available' | 'rented' | 'maintenance';
 
+export type PriceUnit = 'hora' | 'dia';
+
 export interface Machine {
   id: string;
   name: string;
   status: MachineStatus;
   price: number;
+  priceUnit: PriceUnit;
   specs: MachineSpecs;
   cat: string;
   img: string;
@@ -23,6 +26,14 @@ export interface Machine {
   ownerId?: number;
   /** Numeric backend departamento_id, kept for round-tripping the publish form. */
   departamentoId?: number | null;
+  marca?: string | null;
+  capacidad?: string | null;
+  anio?: number | null;
+  horometro?: string | null;
+  incluyeOperador?: boolean;
+  incluyeCombustible?: boolean;
+  telefonoContacto?: string | null;
+  nombreContacto?: string | null;
   history?: RentalHistory[];
 }
 
@@ -54,6 +65,8 @@ export interface User {
   role: 'owner' | 'operator' | 'renter' | null;
   whatsapp?: string;
   verificado?: boolean;
+  fotoUrl?: string | null;
+  creadoEn?: string;
 }
 
 export interface ToastMessage {
@@ -78,6 +91,7 @@ export interface UsuarioApi {
   email: string;
   telefono: string | null;
   rol: RolUsuario;
+  foto_url: string | null;
   verificado: boolean;
   creado_en: string;
 }
@@ -90,6 +104,26 @@ export interface UsuarioCreateApi {
   password: string;
 }
 
+export interface UsuarioUpdateApi {
+  nombre?: string;
+  telefono?: string | null;
+  foto_url?: string | null;
+}
+
+export interface CambiarPasswordApi {
+  password_actual: string;
+  password_nueva: string;
+}
+
+export interface UsuarioPublicoApi {
+  id: number;
+  nombre: string;
+  telefono: string | null;
+  foto_url: string | null;
+  rol: RolUsuario;
+  verificado: boolean;
+}
+
 export interface TokenApi {
   access_token: string;
   token_type: string;
@@ -100,6 +134,8 @@ export interface LoginRequestApi {
   password: string;
 }
 
+export type TipoPrecio = 'hora' | 'dia';
+
 export interface MaquinaApi {
   id: number;
   propietario_id: number;
@@ -108,10 +144,19 @@ export interface MaquinaApi {
   tipo: string;
   descripcion: string | null;
   precio_dia: number;
+  tipo_precio: TipoPrecio;
   ubicacion: string | null;
   latitud: number | null;
   longitud: number | null;
   imagen_url: string | null;
+  marca: string | null;
+  capacidad: string | null;
+  año: number | null;
+  horometro: string | null;
+  incluye_operador: boolean;
+  incluye_combustible: boolean;
+  telefono_contacto: string | null;
+  nombre_contacto: string | null;
   estado: EstadoMaquina;
   creado_en: string;
 }
@@ -121,11 +166,24 @@ export interface MaquinaCreateApi {
   tipo: string;
   descripcion?: string | null;
   precio_dia: number;
+  tipo_precio?: TipoPrecio;
   ubicacion?: string | null;
   latitud?: number | null;
   longitud?: number | null;
   imagen_url?: string | null;
+  marca?: string | null;
+  capacidad?: string | null;
+  año?: number | null;
+  horometro?: string | null;
+  incluye_operador?: boolean;
+  incluye_combustible?: boolean;
+  telefono_contacto?: string | null;
+  nombre_contacto?: string | null;
   departamento_id?: number | null;
+}
+
+export interface MaquinaUpdateApi extends Partial<MaquinaCreateApi> {
+  estado?: EstadoMaquina;
 }
 
 export interface OperadorApi {
@@ -140,6 +198,12 @@ export interface OperadorApi {
 
 export interface OperadorCreateApi {
   usuario_id: number;
+  experiencia_anios?: number;
+  tarifa_dia?: number | null;
+  certificaciones?: string | null;
+}
+
+export interface OperadorUpdateApi {
   experiencia_anios?: number;
   tarifa_dia?: number | null;
   certificaciones?: string | null;
@@ -177,6 +241,39 @@ export interface CalificacionCreateApi {
   alquiler_id: number;
   estrellas: number;
   comentario?: string | null;
+}
+
+export type EstadoAlquiler = 'pendiente' | 'activo' | 'finalizado' | 'cancelado';
+
+export interface AlquilerApi {
+  id: number;
+  maquina_id: number;
+  arrendatario_id: number;
+  operador_id: number | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  precio_acordado: number;
+  costo_total: number | null;
+  estado: EstadoAlquiler;
+  creado_en: string;
+}
+
+export type TipoDocumento = 'dui' | 'licencia' | 'rtn' | 'certificacion';
+export type EstadoDocumento = 'pendiente' | 'aprobado' | 'rechazado';
+
+export interface DocumentoVerificacionApi {
+  id: number;
+  usuario_id: number;
+  tipo: TipoDocumento;
+  url_documento: string;
+  estado: EstadoDocumento;
+  creado_en: string;
+}
+
+export interface DocumentoVerificacionCreateApi {
+  usuario_id: number;
+  tipo: TipoDocumento;
+  url_documento: string;
 }
 
 export interface ApiErrorBody {

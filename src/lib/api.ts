@@ -1,17 +1,24 @@
 import type {
+  AlquilerApi,
   CalificacionApi,
   CalificacionCreateApi,
+  CambiarPasswordApi,
   DepartamentoApi,
+  DocumentoVerificacionApi,
+  DocumentoVerificacionCreateApi,
   FavoritoApi,
   FavoritoCreateApi,
   LoginRequestApi,
   MaquinaApi,
   MaquinaCreateApi,
+  MaquinaUpdateApi,
   OperadorApi,
   OperadorCreateApi,
+  OperadorUpdateApi,
   TokenApi,
   UsuarioApi,
   UsuarioCreateApi,
+  UsuarioUpdateApi,
 } from '../types';
 import { getToken } from './auth';
 
@@ -90,6 +97,22 @@ export function obtenerPerfilActual(): Promise<UsuarioApi> {
   return request<UsuarioApi>('/auth/me', { auth: true });
 }
 
+export function cambiarPassword(datos: CambiarPasswordApi): Promise<void> {
+  return request<void>('/auth/cambiar-password', { method: 'PUT', body: datos, auth: true });
+}
+
+/* ───────────────────────── USUARIOS ───────────────────────── */
+
+export function actualizarUsuario(id: number, datos: UsuarioUpdateApi): Promise<UsuarioApi> {
+  return request<UsuarioApi>(`/usuarios/${id}`, { method: 'PUT', body: datos, auth: true });
+}
+
+/* ───────────────────────── SESIONES ───────────────────────── */
+
+export function cerrarTodasLasSesiones(): Promise<void> {
+  return request<void>('/sesiones/todas', { method: 'DELETE', auth: true });
+}
+
 /* ───────────────────────── MÁQUINAS ───────────────────────── */
 
 export function listarMaquinas(): Promise<MaquinaApi[]> {
@@ -104,6 +127,10 @@ export function crearMaquina(datos: MaquinaCreateApi): Promise<MaquinaApi> {
   return request<MaquinaApi>('/maquinas/', { method: 'POST', body: datos, auth: true });
 }
 
+export function actualizarMaquina(id: number, datos: MaquinaUpdateApi): Promise<MaquinaApi> {
+  return request<MaquinaApi>(`/maquinas/${id}`, { method: 'PUT', body: datos, auth: true });
+}
+
 /* ───────────────────────── OPERADORES ───────────────────────── */
 
 export function listarOperadores(): Promise<OperadorApi[]> {
@@ -112,6 +139,10 @@ export function listarOperadores(): Promise<OperadorApi[]> {
 
 export function crearOperador(datos: OperadorCreateApi): Promise<OperadorApi> {
   return request<OperadorApi>('/operadores/', { method: 'POST', body: datos, auth: true });
+}
+
+export function actualizarOperador(id: number, datos: OperadorUpdateApi): Promise<OperadorApi> {
+  return request<OperadorApi>(`/operadores/${id}`, { method: 'PUT', body: datos, auth: true });
 }
 
 /* ───────────────────────── DEPARTAMENTOS ───────────────────────── */
@@ -142,4 +173,22 @@ export function crearCalificacion(datos: CalificacionCreateApi): Promise<Calific
 
 export function listarCalificacionesPorMaquina(maquinaId: number): Promise<CalificacionApi[]> {
   return request<CalificacionApi[]>(`/calificaciones/?maquina_id=${maquinaId}`);
+}
+
+/* ───────────────────────── ALQUILERES ───────────────────────── */
+
+export function listarMisAlquileres(): Promise<AlquilerApi[]> {
+  return request<AlquilerApi[]>('/alquileres/', { auth: true });
+}
+
+/* ───────────────────────── DOCUMENTOS DE VERIFICACIÓN ───────────────────────── */
+
+export function crearDocumentoVerificacion(
+  datos: DocumentoVerificacionCreateApi
+): Promise<DocumentoVerificacionApi> {
+  return request<DocumentoVerificacionApi>('/documentos-verificacion/', {
+    method: 'POST',
+    body: datos,
+    auth: true,
+  });
 }
