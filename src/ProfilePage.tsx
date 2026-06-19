@@ -18,7 +18,7 @@ import {
   listarOperadores,
 } from './lib/api';
 import { setCurrentUser } from './lib/auth';
-import { subirImagen } from './lib/cloudinary';
+import { getImageUrl, subirImagen } from './lib/cloudinary';
 
 interface ProfilePageProps {
   user: UserProfile;
@@ -213,7 +213,7 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
         <div className="flex items-center gap-5 mb-6">
           <div className="relative w-20 h-20 rounded-full bg-[#E2E2DE] overflow-hidden shrink-0">
             {user.fotoUrl ? (
-              <img src={user.fotoUrl} alt={user.name} className="w-full h-full object-cover" />
+              <img src={getImageUrl(user.fotoUrl, 'perfil')} alt={user.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[#717171] text-2xl font-bold">
                 {user.name.charAt(0).toUpperCase()}

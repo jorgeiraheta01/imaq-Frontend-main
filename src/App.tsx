@@ -61,7 +61,7 @@ import {
   uiRoleToApiRol,
   usuarioApiToUser,
 } from './lib/auth';
-import { subirImagen } from './lib/cloudinary';
+import { getImageUrl, subirImagen } from './lib/cloudinary';
 import ProfilePage from './ProfilePage';
 
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
@@ -718,7 +718,7 @@ export default function App() {
                   >
                     {loggedInUser.fotoUrl ? (
                       <img
-                        src={loggedInUser.fotoUrl}
+                        src={getImageUrl(loggedInUser.fotoUrl, 'perfil')}
                         alt={loggedInUser.name}
                         className="w-6 h-6 rounded-full object-cover border border-[#E2E2DE]"
                       />
@@ -812,7 +812,7 @@ export default function App() {
                     <div className="pt-2 border-t border-[#E2E2DE] space-y-2">
                       <p className="text-[13px] text-[#2B44C7] font-semibold flex items-center gap-2">
                         {loggedInUser.fotoUrl ? (
-                          <img src={loggedInUser.fotoUrl} alt={loggedInUser.name} className="w-6 h-6 rounded-full object-cover" />
+                          <img src={getImageUrl(loggedInUser.fotoUrl, 'perfil')} alt={loggedInUser.name} className="w-6 h-6 rounded-full object-cover" />
                         ) : (
                           <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
                             {loggedInUser.name.charAt(0).toUpperCase()}
@@ -1169,9 +1169,9 @@ export default function App() {
                     
                     {/* Image space */}
                     <div className="h-[180px] overflow-hidden relative bg-[#E2E2DE]">
-                      <img 
-                        src={machine.img} 
-                        alt={machine.name} 
+                      <img
+                        src={getImageUrl(machine.img, 'maquina')}
+                        alt={machine.name}
                         className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                       />
                       
@@ -2212,8 +2212,8 @@ export default function App() {
               
               {/* Top Banner machine photo */}
               <div className="h-[240px] w-full relative bg-[#E2E2DE]">
-                <img 
-                  src={selectedMachine.img} 
+                <img
+                  src={getImageUrl(selectedMachine.img, 'maquina')}
                   alt={selectedMachine.name}
                   className="w-full h-full object-cover"
                 />
