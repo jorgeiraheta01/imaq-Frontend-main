@@ -1,0 +1,6 @@
+{
+  "name": "iMaq",
+  "description": "Marketplace de alquiler de maquinaria de construcción pesada y directorio de operadores certificados en El Salvador.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

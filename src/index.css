@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "DM Serif Display", Georgia, serif;
+  --font-mono: "DM Mono", monospace;
+
+  --color-navy: #1B2D6B;
+  --color-blue-imaq: #2B44C7;
+  --color-amber: #E8A020;
+  --color-amber-dark: #C88010;
+  --color-ink: #0F0F0F;
+  --color-ink-2: #3A3A3A;
+  --color-ink-3: #717171;
+  --color-ink-4: #B0B0B0;
+  --color-bg-imaq: #F5F4F0;
+  --color-white: #FFFFFF;
+  --color-line: #E2E2DE;
+  --color-green-imaq: #16793A;
+  --color-green-dim: #E8F5ED;
+  --color-red-imaq: #991B1B;
+  --color-red-dim: #FEF2F2;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-imaq);
+  color: var(--color-ink);
+}
+
+.font-serif-italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+.font-mono-imaq {
+  font-family: var(--font-mono);
+}
+
+.border-hairline {
+  border: 1px solid var(--color-line);
+}
+
+.sharp {
+  border-radius: 0px !important;
+}
+
+.btn-amber {
+  background-color: var(--color-amber);
+  color: var(--color-white);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-amber:hover {
+  background-color: var(--color-amber-dark);
+}
+
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* Custom scrollbar to keep layout clean */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F5F4F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #B0B0B0;
+  border-radius: 0px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #717171;
+}
