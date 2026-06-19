@@ -433,7 +433,7 @@ export default function App() {
         // Only the first photo becomes the machine's primary imagen_url for now.
         setPublishUploadingPhoto(true);
         try {
-          imagenUrl = await subirImagen(photoFiles[0]);
+          imagenUrl = await subirImagen(photoFiles[0], 'maquinas');
         } catch (error) {
           const message = error instanceof Error ? error.message : 'No se pudo subir la foto a Cloudinary';
           addToast(`Error al subir la foto: ${message}. La máquina no fue publicada.`, 'error');

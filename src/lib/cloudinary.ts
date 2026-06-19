@@ -13,7 +13,9 @@ export function isCloudinaryConfigured(): boolean {
   return Boolean(CLOUD_NAME && UPLOAD_PRESET);
 }
 
-export async function subirImagen(file: File): Promise<string> {
+export type CarpetaCloudinary = 'maquinas' | 'operadores' | 'perfiles';
+
+export async function subirImagen(file: File, carpeta: CarpetaCloudinary): Promise<string> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new CloudinaryConfigError(
       'Cloudinary no está configurado. Define VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET en tu .env'
@@ -25,6 +27,7 @@ export async function subirImagen(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', `imaq/${carpeta}`);
 
   let response: Response;
   try {
