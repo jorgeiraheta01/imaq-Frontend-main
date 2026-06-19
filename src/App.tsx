@@ -113,7 +113,6 @@ export default function App() {
   const [operatorFilter, setOperatorFilter] = useState<string>('Todas las especialidades');
 
   // Machine category filter (built dynamically from the loaded catalog)
-  const [machineCategoryFilter, setMachineCategoryFilter] = useState<string>('Todas');
 
   // Favorite states: local optimistic set of machine ids + the backend
   // favorito row id for each one (needed to call DELETE /favoritos/{id}).
@@ -602,11 +601,23 @@ export default function App() {
     ? operators
     : operators.filter(o => o.specialty.toLowerCase().includes(operatorFilter.toLowerCase()));
 
-  // Distinct categories present in the loaded catalog, for the filter chips
-  const machineCategories = ['Todas', ...Array.from(new Set(machines.map((m) => m.cat)))];
-  const filteredMachines = machineCategoryFilter === 'Todas'
-    ? machines
-    : machines.filter((m) => m.cat === machineCategoryFilter);
+  // Distinct machine types present in the loaded catalog, for the type filter
+  const machineTypes = ['Todos', ...Array.from(new Set(machines.map((m) => m.cat)))];
+  const filteredMachines = machines.filter((m) => {
+    if (filterTipo !== 'Todos' && m.cat !== filterTipo) return false;
+    if (filterDepartamentoId !== 'todos' && m.departamentoId !== filterDepartamentoId) return false;
+    if (filterPrecioMax && m.price > Number(filterPrecioMax)) return false;
+    if (filterTipoPrecio !== 'todos' && m.priceUnit !== filterTipoPrecio) return false;
+    return true;
+  });
+  const machineFiltersActive =
+    filterTipo !== 'Todos' || filterDepartamentoId !== 'todos' || !!filterPrecioMax || filterTipoPrecio !== 'todos';
+  const clearMachineFilters = () => {
+    setFilterTipo('Todos');
+    setFilterDepartamentoId('todos');
+    setFilterPrecioMax('');
+    setFilterTipoPrecio('todos');
+  };
 
   // Machines owned by the logged-in owner (used by the dashboard)
   const ownerMachines = loggedInUser?.id
@@ -885,7 +896,7 @@ export default function App() {
           </section>
 
           {/* SERVICES SECTION */}
-          <section className="bg-white border-b border-[#E2E2DE]">
+          <section id="how-it-works-anchor" className="bg-white border-b border-[#E2E2DE]">
             <div className="max-w-[1140px] mx-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#E2E2DE]">
               
               {/* Cell 1 */}
@@ -989,27 +1000,70 @@ export default function App() {
               )}
             </div>
 
-            {/* Category filter chips — active filter gets visual feedback */}
-            {!machinesLoading && !machinesError && machines.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-10">
-                {machineCategories.map((cat) => {
-                  const isActive = machineCategoryFilter === cat;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setMachineCategoryFilter(cat)}
-                      className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border transition-colors cursor-pointer ${
-                        isActive
-                          ? 'bg-[#2B44C7] border-[#2B44C7] text-white'
-                          : 'bg-white border-[#E2E2DE] text-[#717171] hover:border-[#2B44C7] hover:text-[#2B44C7]'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
+            {/* Always-visible filter bar: tipo, departamento, precio máximo, tipo de precio */}
+            <div className="bg-white border border-[#E2E2DE] p-4 mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tipo de máquina</label>
+                <select
+                  value={filterTipo}
+                  onChange={(e) => setFilterTipo(e.target.value)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  {machineTypes.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Departamento</label>
+                <select
+                  value={filterDepartamentoId}
+                  onChange={(e) => setFilterDepartamentoId(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="todos">Todos</option>
+                  {departments.map((dep) => (
+                    <option key={dep.id} value={dep.id}>{dep.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio máximo (USD)</label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Sin límite"
+                  value={filterPrecioMax}
+                  onChange={(e) => setFilterPrecioMax(e.target.value)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tarifa por</label>
+                <select
+                  value={filterTipoPrecio}
+                  onChange={(e) => setFilterTipoPrecio(e.target.value as 'todos' | 'hora' | 'dia')}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="todos">Hora o día</option>
+                  <option value="dia">Por día</option>
+                  <option value="hora">Por hora</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={clearMachineFilters}
+                  disabled={!machineFiltersActive}
+                  className="w-full text-[11px] font-bold uppercase tracking-wider px-3 py-2.5 border border-[#E2E2DE] text-[#717171] hover:border-[#991B1B] hover:text-[#991B1B] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            </div>
 
             {/* LOADING SKELETON */}
             {machinesLoading && (
@@ -1059,13 +1113,13 @@ export default function App() {
               </div>
             )}
 
-            {/* No results for the active category filter */}
+            {/* No results for the active filters */}
             {!machinesLoading && !machinesError && machines.length > 0 && filteredMachines.length === 0 && (
               <div className="text-center bg-white border border-[#E2E2DE] py-12 px-6">
                 <p className="text-[13px] text-[#717171]">
-                  No hay máquinas en la categoría "{machineCategoryFilter}".{' '}
-                  <button onClick={() => setMachineCategoryFilter('Todas')} className="text-[#2B44C7] font-semibold hover:underline">
-                    Ver todas
+                  Ningún equipo coincide con los filtros seleccionados.{' '}
+                  <button onClick={clearMachineFilters} className="text-[#2B44C7] font-semibold hover:underline">
+                    Limpiar filtros
                   </button>
                 </p>
               </div>
@@ -1147,7 +1201,7 @@ export default function App() {
                           <span className="block text-[9px] uppercase text-[#717171] tracking-wider leading-none">Tarifa</span>
                           <div className="flex items-baseline mt-0.5">
                             <span className="font-mono-imaq text-[17px] font-bold text-[#C88010] leading-none">${machine.price}</span>
-                            <span className="text-[10px] text-[#717171] ml-0.5 font-normal">/día</span>
+                            <span className="text-[10px] text-[#717171] ml-0.5 font-normal">/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
                           </div>
                         </div>
 
@@ -1171,71 +1225,6 @@ export default function App() {
 
           </section>
 
-          {/* ABOUT / PRECISION SECTION */}
-          <section className="bg-white border-t border-b border-[#E2E2DE] py-20 overflow-hidden">
-            <div className="max-w-[1140px] mx-auto px-4 grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-16 items-center">
-              
-              {/* Left Column info */}
-              <div className="md:col-span-6 space-y-6">
-                <span className="inline-block text-[10px] font-bold text-[#2B44C7] tracking-widest border border-[#2B44C7] uppercase px-3 py-1">
-                  ALTA PRECISIÓN
-                </span>
-                
-                <h2 className="text-[#0F0F0F] text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-                  Diseñado para la <br />
-                  <span className="text-[#2B44C7] italic font-serif-italic text-4xl sm:text-5xl">
-                    eficiencia total
-                  </span>
-                </h2>
-
-                <p className="text-[#3A3A3A] text-[15px] leading-[1.65]">
-                  En iMaq, no solo alquilamos máquinas; proveemos la infraestructura técnica para que los proyectos de construcción e ingeniería en El Salvador alcancen su máximo potencial.
-                </p>
-
-                <ul className="space-y-3 pt-2">
-                  {[
-                    'Soporte técnico 24/7 en campo',
-                    'Seguros de cobertura amplia incluidos',
-                    'Facturación electrónica instantánea'
-                  ].map((item, idx) => (
-                    <li key={idx} className="flex items-center text-[13px] text-[#0F0F0F] font-medium leading-relaxed">
-                      <span className="w-1.5 h-1.5 bg-[#2B44C7] mr-3 shrink-0"></span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Right Column photo and badge quote */}
-              <div className="md:col-span-6 relative pt-4 pb-8 pr-6 pl-2">
-                <div className="aspect-[4/3] bg-[#E2E2DE] relative">
-                  <img 
-                    src="https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=85" 
-                    alt="Edificio moderno de arquitectura en San Salvador" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                {/* Overlaid quote card with subtle shadow */}
-                <div className="absolute bottom-0 right-0 max-w-[280px] bg-white border border-[#E2E2DE] p-5 shadow-[0_4px_24px_rgba(0,0,0,.08)]">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-8 h-8 rounded-full bg-[#2B44C7] flex items-center justify-center text-white text-[12px] font-bold italic font-serif-italic">
-                      EM
-                    </div>
-                    <div>
-                      <h4 className="text-[13px] font-bold text-[#0F0F0F] leading-tight">Ernesto Méndez</h4>
-                      <p className="text-[10px] text-[#717171] uppercase font-semibold leading-none">Director Vial</p>
-                    </div>
-                  </div>
-                  <p className="text-[12px] text-[#3A3A3A] italic leading-relaxed font-normal">
-                    "iMaq ha transformado la forma en que gestionamos los equipos en El Salvador. Precisión pura."
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </section>
-
         </main>
       )}
 
@@ -1245,53 +1234,29 @@ export default function App() {
       {currentPage === 'operators' && (
         <main className="flex-1 bg-[#F5F4F0]">
           
-          {/* OPERATORS HERO */}
-          <section className="bg-white border-b border-[#E2E2DE] py-16 md:py-20">
-            <div className="max-w-[1140px] mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
-              
-              <div className="lg:col-span-8">
-                <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em] mb-2">
-                  DIRECTORIO PROFESIONAL
-                </span>
-                
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#0F0F0F] tracking-[-0.03em] leading-tight mb-3">
-                  Operadores de <br />
-                  <span className="text-[#2B44C7] italic font-serif-italic text-4xl sm:text-5xl md:text-6xl lg:text-7xl">
-                    Confianza Mundial.
-                  </span>
-                </h1>
+          {/* OPERATORS COMPACT HEADER (max 80px tall) */}
+          <section className="bg-white border-b border-[#E2E2DE] h-20 flex items-center">
+            <div className="max-w-[1140px] mx-auto px-4 w-full flex items-center justify-between gap-4">
+              <h1 className="text-[18px] sm:text-[20px] font-extrabold text-[#0F0F0F] tracking-tight">
+                Directorio de Operadores
+              </h1>
 
-                <p className="text-[#3A3A3A] text-[15px] leading-[1.7] max-w-[500px] mt-6">
-                  Conectamos a empresas constructoras con los operadores de maquinaria pesada más calificados y certificados de El Salvador. Excelencia técnica y seguridad garantizada.
-                </p>
-              </div>
-
-              {/* Specialty filter box */}
-              <div className="lg:col-span-4 w-full flex lg:justify-end">
-                <div className="bg-white border border-[#E2E2DE] p-5 w-full max-w-[340px]">
-                  <label className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2 leading-none">
-                    FILTRAR POR ESPECIALIDAD
-                  </label>
-                  
-                  <div className="relative">
-                    <select 
-                      value={operatorFilter}
-                      onChange={(e) => setOperatorFilter(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 pr-10 focus:border-[#2B44C7] focus:outline-none focus:ring-0 appearance-none rounded-none cursor-pointer"
-                    >
-                      <option>Todas las especialidades</option>
-                      <option>Excavadora Hidráulica</option>
-                      <option>Operador de Grúa Torre</option>
-                      <option>Motoniveladora Especializada</option>
-                      <option>Bulldozer / Compactadora</option>
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#717171]">
-                      <ChevronDown size={16} />
-                    </div>
-                  </div>
+              <div className="relative w-[220px] sm:w-[260px] shrink-0">
+                <select
+                  value={operatorFilter}
+                  onChange={(e) => setOperatorFilter(e.target.value)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium py-2 pl-3 pr-9 focus:border-[#2B44C7] focus:outline-none focus:ring-0 appearance-none rounded-none cursor-pointer"
+                >
+                  <option>Todas las especialidades</option>
+                  <option>Excavadora Hidráulica</option>
+                  <option>Operador de Grúa Torre</option>
+                  <option>Motoniveladora Especializada</option>
+                  <option>Bulldozer / Compactadora</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#717171]">
+                  <ChevronDown size={14} />
                 </div>
               </div>
-
             </div>
           </section>
 
@@ -1339,12 +1304,24 @@ export default function App() {
             )}
 
             {!operatorsLoading && !operatorsError && filteredOperators.length === 0 && (
-              <div className="text-center bg-white border border-[#E2E2DE] py-12 px-6 mb-12">
-                <p className="text-[13px] text-[#717171]">
+              <div className="flex flex-col items-center text-center bg-white border border-[#E2E2DE] py-12 px-6 mb-12">
+                <p className="text-[13px] text-[#717171] mb-4">
                   {operators.length === 0
                     ? 'Aún no hay operadores registrados.'
                     : `No hay operadores para "${operatorFilter}".`}
                 </p>
+                {operators.length === 0 && (
+                  <button
+                    onClick={() => {
+                      setRegisterRole('operator');
+                      setAuthTab('register');
+                      setIsAuthModalOpen(true);
+                    }}
+                    className="bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
+                  >
+                    Registrarme como operador
+                  </button>
+                )}
               </div>
             )}
 
@@ -2017,7 +1994,7 @@ export default function App() {
                       <tr key={machine.id} className="border-b border-[#F5F4F0] hover:bg-[#F9F9F7] cursor-pointer" onClick={() => setSelectedMachine(machine)}>
                         <td className="p-4 text-[13px] font-bold text-[#0F0F0F]">{machine.name}</td>
                         <td className="p-4 text-[13px] text-[#3A3A3A] font-mono-imaq uppercase">{machine.cat}</td>
-                        <td className="p-4 text-[13px] font-mono-imaq text-[#C88010] font-bold">${machine.price}</td>
+                        <td className="p-4 text-[13px] font-mono-imaq text-[#C88010] font-bold">${machine.price}/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</td>
                         <td className="p-4">
                           <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 ${
                             machine.status === 'available'
@@ -2038,6 +2015,20 @@ export default function App() {
           </div>
 
         </main>
+      )}
+
+      {/* ────────────────────────────────────────────────────────────────
+          PAGE 5: MY PROFILE (gated to any logged-in user)
+          ──────────────────────────────────────────────────────────────── */}
+      {currentPage === 'profile' && loggedInUser && (
+        <ProfilePage
+          user={loggedInUser}
+          machines={machines}
+          onUserChange={setLoggedInUser}
+          addToast={addToast}
+          onNavigatePublish={() => navigateTo('publish')}
+          onLogout={handleLogout}
+        />
       )}
 
       {/* ────────────────────────────────────────────────────────────────
@@ -2234,7 +2225,7 @@ export default function App() {
                       
                       <div className="flex items-center space-x-3">
                         <span className="text-[#C88010] font-bold text-[14px] font-mono-imaq leading-none shrink-0">$</span>
-                        <span><strong>Tarifa:</strong> <span className="font-mono-imaq text-[#C88010] font-bold">${selectedMachine.price} USD</span> / día</span>
+                        <span><strong>Tarifa:</strong> <span className="font-mono-imaq text-[#C88010] font-bold">${selectedMachine.price} USD</span> / {selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
                       </div>
 
                       <div className="flex items-center space-x-3">
