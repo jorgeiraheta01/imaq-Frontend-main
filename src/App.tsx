@@ -64,6 +64,7 @@ import {
   usuarioApiToUser,
 } from './lib/auth';
 import { getImageUrl, subirImagen } from './lib/cloudinary';
+import { formatLocalPhone, PHONE_PREFIX, toFullPhone } from './lib/phone';
 import ProfilePage from './ProfilePage';
 
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
@@ -651,7 +652,7 @@ export default function App() {
       const usuarioCreado = await registrarUsuario({
         nombre: regName,
         email: regEmail,
-        telefono: regPhone,
+        telefono: toFullPhone(regPhone),
         rol: uiRoleToApiRol(rolFinal),
         password: regPassword,
         dui: regDui,
@@ -752,7 +753,7 @@ export default function App() {
           STICKY NAVBAR (Only rendered if NOT on the Publish page)
           ──────────────────────────────────────────────────────────────── */}
       {currentPage !== 'publish' && (
-        <header className="sticky top-0 left-0 w-full bg-white z-40 border-b border-[#E2E2DE]">
+        <header className="sticky top-0 left-0 w-full bg-white z-[60] border-b border-[#E2E2DE]">
           <div className="max-w-[1140px] mx-auto h-14 px-4 flex items-center justify-between">
             
             {/* Logo */}
@@ -1593,7 +1594,7 @@ export default function App() {
         <div className="min-h-screen bg-[#F5F4F0] flex flex-col justify-between">
           
           {/* Form specific header */}
-          <header className="bg-white border-b border-[#E2E2DE] py-4 px-6 md:px-12 sticky top-0 z-30">
+          <header className="bg-white border-b border-[#E2E2DE] py-4 px-6 md:px-12 sticky top-0 z-[60]">
             <div className="max-w-[1140px] mx-auto flex items-center justify-between">
               
               {/* Logo */}
@@ -2863,16 +2864,23 @@ export default function App() {
 
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
-                      WhatsApp (+503)
+                      WhatsApp
                     </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej: 71234567"
-                      value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
-                    />
+                    <div className="flex">
+                      <span className="flex items-center px-3 bg-[#F5F4F0] border border-r-0 border-[#E2E2DE] text-[#717171] text-[13px] font-bold font-mono-imaq">
+                        {PHONE_PREFIX}
+                      </span>
+                      <input
+                        type="text"
+                        required
+                        inputMode="numeric"
+                        placeholder="7868-8174"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(formatLocalPhone(e.target.value))}
+                        maxLength={9}
+                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none font-mono-imaq"
+                      />
+                    </div>
                   </div>
 
                   <div>

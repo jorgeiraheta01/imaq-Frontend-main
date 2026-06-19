@@ -19,6 +19,7 @@ import {
 } from './lib/api';
 import { setCurrentUser } from './lib/auth';
 import { getImageUrl, subirImagen } from './lib/cloudinary';
+import { formatLocalPhone, fromFullPhone, PHONE_PREFIX, toFullPhone } from './lib/phone';
 
 interface ProfilePageProps {
   user: UserProfile;
@@ -37,7 +38,7 @@ const ROL_BADGE: Record<NonNullable<UserProfile['role']>, { label: string; bg: s
 
 export default function ProfilePage({ user, machines, onUserChange, addToast, onNavigatePublish, onLogout }: ProfilePageProps) {
   const [nombre, setNombre] = useState(user.name);
-  const [telefono, setTelefono] = useState(user.whatsapp || '');
+  const [telefono, setTelefono] = useState(() => fromFullPhone(user.whatsapp));
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -112,7 +113,7 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
     }
     setSavingProfile(true);
     try {
-      const actualizado = await actualizarUsuario(user.id, { nombre, telefono: telefono || null });
+      const actualizado = await actualizarUsuario(user.id, { nombre, telefono: telefono ? toFullPhone(telefono) : null });
       const updated = { ...user, name: actualizado.nombre, whatsapp: actualizado.telefono || undefined };
       onUserChange(updated);
       setCurrentUser(updated);
@@ -251,11 +252,19 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">Teléfono / WhatsApp</label>
-            <input
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              className="w-full bg-white border border-[#E2E2DE] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
-            />
+            <div className="flex">
+              <span className="flex items-center px-3 bg-[#F5F4F0] border border-r-0 border-[#E2E2DE] text-[#717171] text-[13px] font-bold font-mono-imaq">
+                {PHONE_PREFIX}
+              </span>
+              <input
+                inputMode="numeric"
+                placeholder="7868-8174"
+                value={telefono}
+                onChange={(e) => setTelefono(formatLocalPhone(e.target.value))}
+                maxLength={9}
+                className="w-full bg-white border border-[#E2E2DE] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none font-mono-imaq"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">Fecha de registro</label>
