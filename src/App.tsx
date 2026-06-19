@@ -61,7 +61,7 @@ import {
   uiRoleToApiRol,
   usuarioApiToUser,
 } from './lib/auth';
-import { subirImagenACloudinary } from './lib/cloudinary';
+import { subirImagen } from './lib/cloudinary';
 import ProfilePage from './ProfilePage';
 
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
@@ -140,6 +140,7 @@ export default function App() {
   // Form State for Publish Equipment Page
   const [publishStep, setPublishStep] = useState<1 | 2 | 3>(1);
   const [publishSubmitting, setPublishSubmitting] = useState(false);
+  const [publishUploadingPhoto, setPublishUploadingPhoto] = useState(false);
   const [editingMachineId, setEditingMachineId] = useState<string | null>(null);
   const [formCategory, setFormCategory] = useState('Excavadora');
   const [formBrand, setFormBrand] = useState('');
@@ -427,13 +428,23 @@ export default function App() {
       const departamento = departments.find((d) => d.id === formDepartamentoId);
 
       setPublishSubmitting(true);
-      try {
-        let imagenUrl: string | null = photoPreviews[0] && !photoFiles[0] ? photoPreviews[0] : null;
-        if (photoFiles.length > 0) {
-          // Only the first photo becomes the machine's primary imagen_url for now.
-          imagenUrl = await subirImagenACloudinary(photoFiles[0]);
+      let imagenUrl: string | null = photoPreviews[0] && !photoFiles[0] ? photoPreviews[0] : null;
+      if (photoFiles.length > 0) {
+        // Only the first photo becomes the machine's primary imagen_url for now.
+        setPublishUploadingPhoto(true);
+        try {
+          imagenUrl = await subirImagen(photoFiles[0]);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'No se pudo subir la foto a Cloudinary';
+          addToast(`Error al subir la foto: ${message}. La máquina no fue publicada.`, 'error');
+          setPublishUploadingPhoto(false);
+          setPublishSubmitting(false);
+          return;
         }
+        setPublishUploadingPhoto(false);
+      }
 
+      try {
         const payload = {
           nombre: `${formCategory} ${formBrand} ${formModel}`.trim(),
           tipo: formCategory,
@@ -705,7 +716,17 @@ export default function App() {
                     onClick={() => setIsUserMenuOpen((v) => !v)}
                     className="flex items-center gap-2 text-[13px] font-semibold text-[#0F0F0F] hover:text-[#2B44C7] cursor-pointer"
                   >
-                    <span className="w-2 h-2 rounded-full bg-[#16793A]"></span>
+                    {loggedInUser.fotoUrl ? (
+                      <img
+                        src={loggedInUser.fotoUrl}
+                        alt={loggedInUser.name}
+                        className="w-6 h-6 rounded-full object-cover border border-[#E2E2DE]"
+                      />
+                    ) : (
+                      <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
+                        {loggedInUser.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
                     {loggedInUser.name}
                     {isUserMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
@@ -789,7 +810,16 @@ export default function App() {
 
                   {loggedInUser ? (
                     <div className="pt-2 border-t border-[#E2E2DE] space-y-2">
-                      <p className="text-[13px] text-[#2B44C7] font-semibold">Sesión: {loggedInUser.name}</p>
+                      <p className="text-[13px] text-[#2B44C7] font-semibold flex items-center gap-2">
+                        {loggedInUser.fotoUrl ? (
+                          <img src={loggedInUser.fotoUrl} alt={loggedInUser.name} className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
+                            {loggedInUser.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        Sesión: {loggedInUser.name}
+                      </p>
                       <button
                         onClick={() => navigateTo('profile')}
                         className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'profile' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
@@ -1893,9 +1923,18 @@ export default function App() {
                       type="button"
                       onClick={handlePublishNext}
                       disabled={publishSubmitting}
-                      className="bg-[#E8A020] hover:bg-[#C88010] disabled:opacity-60 disabled:cursor-not-allowed text-[#0F0F0F] font-bold text-[12px] tracking-widest uppercase px-8 py-3 rounded-none transition-colors ml-auto cursor-pointer"
+                      className="bg-[#E8A020] hover:bg-[#C88010] disabled:opacity-60 disabled:cursor-not-allowed text-[#0F0F0F] font-bold text-[12px] tracking-widest uppercase px-8 py-3 rounded-none transition-colors ml-auto cursor-pointer flex items-center gap-2"
                     >
-                      {publishStep === 3 ? (publishSubmitting ? 'Publicando...' : 'Listo - Publicar Máquina') : 'CONTINUAR'}
+                      {publishStep === 3 && publishSubmitting && (
+                        <span className="w-3.5 h-3.5 border-2 border-[#0F0F0F]/30 border-t-[#0F0F0F] rounded-full animate-spin" />
+                      )}
+                      {publishStep === 3
+                        ? publishUploadingPhoto
+                          ? 'Subiendo foto...'
+                          : publishSubmitting
+                          ? 'Publicando...'
+                          : 'Listo - Publicar Máquina'
+                        : 'CONTINUAR'}
                     </button>
                   </div>
 

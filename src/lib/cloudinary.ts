@@ -1,25 +1,26 @@
-// VITE_CLOUDINARY_URL must be the unsigned upload endpoint, e.g.
-// https://api.cloudinary.com/v1_1/<cloud_name>/image/upload
-// VITE_CLOUDINARY_UPLOAD_PRESET must be an unsigned upload preset configured
-// in the Cloudinary dashboard. Never put the API secret in a VITE_ var — it
-// ships to the browser bundle.
+// VITE_CLOUDINARY_CLOUD_NAME: your Cloudinary cloud name (public, safe to expose).
+// VITE_CLOUDINARY_UPLOAD_PRESET: an UNSIGNED upload preset configured in your
+// Cloudinary dashboard. Never put your API secret in a VITE_ variable — it
+// ships to the browser bundle. No Cloudinary SDK is used — just native fetch.
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
 
-const CLOUDINARY_URL = env.VITE_CLOUDINARY_URL;
+const CLOUD_NAME = env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export class CloudinaryConfigError extends Error {}
 
 export function isCloudinaryConfigured(): boolean {
-  return Boolean(CLOUDINARY_URL && UPLOAD_PRESET);
+  return Boolean(CLOUD_NAME && UPLOAD_PRESET);
 }
 
-export async function subirImagenACloudinary(file: File): Promise<string> {
-  if (!CLOUDINARY_URL || !UPLOAD_PRESET) {
+export async function subirImagen(file: File): Promise<string> {
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new CloudinaryConfigError(
-      'Cloudinary no está configurado. Define VITE_CLOUDINARY_URL y VITE_CLOUDINARY_UPLOAD_PRESET en tu .env'
+      'Cloudinary no está configurado. Define VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET en tu .env'
     );
   }
+
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 
   const formData = new FormData();
   formData.append('file', file);
@@ -27,7 +28,7 @@ export async function subirImagenACloudinary(file: File): Promise<string> {
 
   let response: Response;
   try {
-    response = await fetch(CLOUDINARY_URL, { method: 'POST', body: formData });
+    response = await fetch(uploadUrl, { method: 'POST', body: formData });
   } catch {
     throw new Error('No se pudo conectar con Cloudinary para subir la imagen');
   }

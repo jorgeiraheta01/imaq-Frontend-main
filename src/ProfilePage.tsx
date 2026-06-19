@@ -18,7 +18,7 @@ import {
   listarOperadores,
 } from './lib/api';
 import { setCurrentUser } from './lib/auth';
-import { subirImagenACloudinary } from './lib/cloudinary';
+import { subirImagen } from './lib/cloudinary';
 
 interface ProfilePageProps {
   user: UserProfile;
@@ -90,7 +90,7 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
     if (!file || !user.id) return;
     setUploadingAvatar(true);
     try {
-      const url = await subirImagenACloudinary(file);
+      const url = await subirImagen(file);
       const actualizado = await actualizarUsuario(user.id, { foto_url: url });
       const updated = { ...user, fotoUrl: actualizado.foto_url };
       onUserChange(updated);
@@ -132,7 +132,7 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
     }
     setSubmittingDoc(true);
     try {
-      const url = await subirImagenACloudinary(docFile);
+      const url = await subirImagen(docFile);
       await crearDocumentoVerificacion({ usuario_id: user.id, tipo: docTipo, url_documento: url });
       setDocSolicitada(true);
       addToast('Documento enviado. Tu verificación está pendiente de revisión.', 'success');
