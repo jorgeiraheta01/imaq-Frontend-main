@@ -15,6 +15,14 @@ export function isCloudinaryConfigured(): boolean {
 
 export type CarpetaCloudinary = 'maquinas' | 'operadores' | 'perfiles';
 
+// Must match the backend's CLOUDINARY_PREFIX check in app/schemas/{maquina,usuario}.py
+const CLOUDINARY_HOST_PREFIX = 'https://res.cloudinary.com/dunj6mccp/';
+
+/** Validates a URL before it's sent to the backend as imagen_url/foto_url. */
+export function esUrlCloudinaryValida(url: string): boolean {
+  return url.startsWith(CLOUDINARY_HOST_PREFIX);
+}
+
 export async function subirImagen(file: File, carpeta: CarpetaCloudinary): Promise<string> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new CloudinaryConfigError(
@@ -49,7 +57,14 @@ export async function subirImagen(file: File, carpeta: CarpetaCloudinary): Promi
     throw new Error(message);
   }
 
-  return data.secure_url as string;
+  const secureUrl = data.secure_url as string;
+  // Defensive check: before handing this URL back to any caller that will
+  // send it to the backend as imagen_url/foto_url, make sure it's really
+  // hosted on our Cloudinary account.
+  if (!esUrlCloudinaryValida(secureUrl)) {
+    throw new Error('La imagen no es válida');
+  }
+  return secureUrl;
 }
 
 type TipoImagen = 'maquina' | 'perfil' | 'operador';

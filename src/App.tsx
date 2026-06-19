@@ -42,6 +42,7 @@ import {
   ApiError,
   actualizarMaquina,
   agregarFavorito,
+  AUTH_EXPIRED_EVENT,
   crearMaquina,
   crearOperador,
   eliminarFavorito,
@@ -50,6 +51,7 @@ import {
   listarFavoritos,
   loginUsuario,
   obtenerPerfilActual,
+  recuperarPassword,
   registrarUsuario,
 } from './lib/api';
 import {
@@ -65,6 +67,15 @@ import { getImageUrl, subirImagen } from './lib/cloudinary';
 import ProfilePage from './ProfilePage';
 
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
+
+const DUI_REGEX = /^[0-9]{8}-[0-9]{1}$/;
+
+/** Auto-inserts the dash as the user types: 8 digits, then "-", then 1 digit. */
+function formatDui(value: string): string {
+  const digits = value.replace(/[^0-9]/g, '').slice(0, 9);
+  if (digits.length <= 8) return digits;
+  return `${digits.slice(0, 8)}-${digits.slice(8)}`;
+}
 
 export default function App() {
   // Page states: 'home' | 'operators' | 'publish' | 'dashboard'
@@ -98,16 +109,35 @@ export default function App() {
 
   // Selected roles on Register form
   const [registerRole, setRegisterRole] = useState<'owner' | 'operator' | 'renter'>('renter');
+  // True when the form was opened via "Registrarme como operador" — locks
+  // the role to operator and swaps in the operator-specific field set.
+  const [isOperatorOnlyRegistration, setIsOperatorOnlyRegistration] = useState(false);
 
   // Input fields for Register
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regDui, setRegDui] = useState('');
+  const [regDuiError, setRegDuiError] = useState<string | null>(null);
+  // Shown after a 409 (DUI already registered) with a link into the forgot-password flow.
+  const [duiConflictMessage, setDuiConflictMessage] = useState(false);
+
+  // Operator-only registration extra fields
+  const OPERATOR_MACHINE_TYPES = ['Excavadora', 'Grúa', 'Compactadora', 'Motoniveladora', 'Bulldozer', 'Hormigonera'];
+  const [operatorMachineTypes, setOperatorMachineTypes] = useState<string[]>([]);
+  const [operatorExperience, setOperatorExperience] = useState('');
+  const [operatorRate, setOperatorRate] = useState('');
 
   // Input fields for Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+
+  // Forgot-password step shown inline within the login tab of the auth modal
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   // Filter operator State
   const [operatorFilter, setOperatorFilter] = useState<string>('Todas las especialidades');
@@ -201,6 +231,17 @@ export default function App() {
     listarDepartamentos().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
+  // Picks up the one-shot toast left by ResetPasswordPage right before it
+  // redirects back here (no shared router/state across that page change).
+  useEffect(() => {
+    const pending = sessionStorage.getItem('imaq_toast_after_redirect');
+    if (pending) {
+      sessionStorage.removeItem('imaq_toast_after_redirect');
+      addToast(pending, 'success');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Resolve / validate the current session against the backend on mount,
   // so a refreshed page always reflects the authoritative user profile
   // (and logs out cleanly if the stored token is no longer valid).
@@ -216,6 +257,20 @@ export default function App() {
         clearSession();
         setLoggedInUser(null);
       });
+  }, []);
+
+  // If a silent token refresh ever fails (refresh token missing/expired/
+  // revoked), api.ts dispatches this event — log out and prompt to log in again.
+  useEffect(() => {
+    const onAuthExpired = () => {
+      setLoggedInUser(null);
+      addToast('Tu sesión expiró. Inicia sesión de nuevo.', 'info');
+      setAuthTab('login');
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load the logged-in user's favorito rows (need their backend ids to unfavorite).
@@ -521,12 +576,16 @@ export default function App() {
     setAuthLoading(true);
     try {
       const token = await loginUsuario({ email: loginEmail, password: loginPassword });
-      saveSession(token.access_token, { name: loginEmail.split('@')[0].toUpperCase(), email: loginEmail, role: null });
+      saveSession(
+        token.access_token,
+        { name: loginEmail.split('@')[0].toUpperCase(), email: loginEmail, role: null },
+        token.refresh_token
+      );
 
       // Resolve the authoritative profile (id, rol, nombre) now that the token is stored.
       const usuario = await obtenerPerfilActual();
       const user = usuarioApiToUser(usuario);
-      saveSession(token.access_token, user);
+      saveSession(token.access_token, user, token.refresh_token);
       setLoggedInUser(user);
 
       setIsAuthModalOpen(false);
@@ -546,6 +605,31 @@ export default function App() {
     }
   };
 
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) {
+      addToast('Ingresa tu correo electrónico', 'error');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await recuperarPassword({ email: forgotEmail });
+    } catch {
+      // Intentionally ignored: the backend always answers 200 for this
+      // endpoint so it can't be used to enumerate registered emails — any
+      // network-level failure still shows the same generic message below.
+    } finally {
+      setForgotLoading(false);
+      setForgotSent(true);
+    }
+  };
+
+  const resetForgotPasswordFlow = () => {
+    setShowForgotPassword(false);
+    setForgotSent(false);
+    setForgotEmail('');
+  };
+
   // Real registration against the iMaq FastAPI backend
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -553,6 +637,14 @@ export default function App() {
       addToast('Por favor complete todos los datos', 'error');
       return;
     }
+    if (!DUI_REGEX.test(regDui)) {
+      setRegDuiError('Formato inválido. Ejemplo: 01234567-8');
+      return;
+    }
+    setRegDuiError(null);
+    setDuiConflictMessage(false);
+
+    const rolFinal = isOperatorOnlyRegistration ? 'operator' : registerRole;
 
     setAuthLoading(true);
     try {
@@ -560,8 +652,9 @@ export default function App() {
         nombre: regName,
         email: regEmail,
         telefono: regPhone,
-        rol: uiRoleToApiRol(registerRole),
+        rol: uiRoleToApiRol(rolFinal),
         password: regPassword,
+        dui: regDui,
       });
 
       // The registro endpoint doesn't return a token, so log in right after.
@@ -569,13 +662,21 @@ export default function App() {
 
       const newUser: UserProfile = usuarioApiToUser(usuarioCreado);
 
-      saveSession(token.access_token, newUser);
+      saveSession(token.access_token, newUser, token.refresh_token);
       setLoggedInUser(newUser);
 
       // If registered as Operator, also create the operador record in the backend
-      if (registerRole === 'operator') {
+      if (rolFinal === 'operator') {
         try {
-          await crearOperador({ usuario_id: usuarioCreado.id, experiencia_anios: 0 });
+          const certificaciones = isOperatorOnlyRegistration && operatorMachineTypes.length > 0
+            ? `Tipos de máquina: ${operatorMachineTypes.join(', ')}`
+            : null;
+          await crearOperador({
+            usuario_id: usuarioCreado.id,
+            experiencia_anios: Number(operatorExperience) || 0,
+            tarifa_dia: operatorRate ? Number(operatorRate) : null,
+            certificaciones,
+          });
           loadOperators();
         } catch (error) {
           console.warn('No se pudo crear el registro de operador en el backend', error);
@@ -589,12 +690,21 @@ export default function App() {
       setRegEmail('');
       setRegPhone('');
       setRegPassword('');
+      setRegDui('');
+      setIsOperatorOnlyRegistration(false);
+      setOperatorMachineTypes([]);
+      setOperatorExperience('');
+      setOperatorRate('');
 
       // Auto-redirect: owners land on their dashboard, everyone else stays on the catalog.
       navigateTo(newUser.role === 'owner' ? 'dashboard' : 'home');
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'No se pudo crear la cuenta';
-      addToast(message, 'error');
+      if (error instanceof ApiError && error.status === 409) {
+        setDuiConflictMessage(true);
+      } else {
+        const message = error instanceof ApiError ? error.message : 'No se pudo crear la cuenta';
+        addToast(message, 'error');
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -1344,6 +1454,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       setRegisterRole('operator');
+                      setIsOperatorOnlyRegistration(true);
                       setAuthTab('register');
                       setIsAuthModalOpen(true);
                     }}
@@ -2456,7 +2567,7 @@ export default function App() {
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             
             {/* Overlay click away */}
-            <div className="absolute inset-0" onClick={() => setIsAuthModalOpen(false)} />
+            <div className="absolute inset-0" onClick={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }} />
 
             {/* Modal layout with zero radius sharp geometry */}
             <motion.div 
@@ -2473,8 +2584,8 @@ export default function App() {
                     i<span className="text-[#2B44C7]">M</span>aq
                   </span>
                   
-                  <button 
-                    onClick={() => setIsAuthModalOpen(false)}
+                  <button
+                    onClick={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }}
                     className="text-[#717171] hover:text-[#0F0F0F]"
                   >
                     <X size={18} />
@@ -2487,21 +2598,21 @@ export default function App() {
 
               {/* Toggle switch tabs */}
               <div className="grid grid-cols-2 border-t border-b border-[#E2E2DE] divide-x divide-[#E2E2DE]">
-                <button 
-                  onClick={() => setAuthTab('login')}
+                <button
+                  onClick={() => { setAuthTab('login'); }}
                   className={`py-3 text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer ${
-                    authTab === 'login' 
-                      ? 'bg-[#0F0F0F] text-white' 
+                    authTab === 'login'
+                      ? 'bg-[#0F0F0F] text-white'
                       : 'bg-white text-[#717171] hover:bg-[#F9F9F7]'
                   }`}
                 >
                   Ingresar
                 </button>
-                <button 
-                  onClick={() => setAuthTab('register')}
+                <button
+                  onClick={() => { setAuthTab('register'); resetForgotPasswordFlow(); }}
                   className={`py-3 text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer ${
-                    authTab === 'register' 
-                      ? 'bg-[#0F0F0F] text-white' 
+                    authTab === 'register'
+                      ? 'bg-[#0F0F0F] text-white'
                       : 'bg-white text-[#717171] hover:bg-[#F9F9F7]'
                   }`}
                 >
@@ -2511,13 +2622,59 @@ export default function App() {
 
               {/* Login block */}
               {authTab === 'login' ? (
+                showForgotPassword ? (
+                  /* Forgot-password sub-step, inline within the login tab */
+                  <form onSubmit={handleForgotPasswordSubmit} className="p-8 space-y-4">
+                    <button
+                      type="button"
+                      onClick={resetForgotPasswordFlow}
+                      className="text-[11px] font-semibold text-[#717171] hover:text-[#0F0F0F] flex items-center gap-1"
+                    >
+                      ← Volver a ingresar
+                    </button>
+
+                    {forgotSent ? (
+                      <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-4">
+                        <p className="text-[13px] text-[#16793A] leading-relaxed">
+                          Si existe una cuenta con ese email, recibirás un link en los próximos minutos.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[12px] text-[#717171] leading-relaxed">
+                          Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
+                        </p>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                            Correo Electrónico
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="Ej: constructor@obras.sv"
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={forgotLoading}
+                          className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                        >
+                          {forgotLoading ? 'Enviando...' : 'Enviar instrucciones'}
+                        </button>
+                      </>
+                    )}
+                  </form>
+                ) : (
                 <form onSubmit={handleLoginSubmit} className="p-8 space-y-4">
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
                       Correo Electrónico
                     </label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       required
                       placeholder="Ej: constructor@obras.sv"
                       value={loginEmail}
@@ -2530,8 +2687,8 @@ export default function App() {
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
                       Contraseña
                     </label>
-                    <input 
-                      type="password" 
+                    <input
+                      type="password"
                       required
                       placeholder="••••••••"
                       value={loginPassword}
@@ -2547,24 +2704,39 @@ export default function App() {
                   >
                     {authLoading ? 'Ingresando...' : 'Ingresar con mi cuenta'}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="w-full text-center text-[12px] font-semibold text-[#2B44C7] hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
                 </form>
+                )
               ) : (
                 /* Register block with Account types grid selector */
                 <form onSubmit={handleRegisterSubmit} className="p-8 space-y-4">
-                  
+
+                  {isOperatorOnlyRegistration ? (
+                    <div className="bg-[#E8F5ED] border border-[#2B44C7]/30 p-3 flex items-center gap-2">
+                      <span className="text-[14px]">👷</span>
+                      <span className="text-[13px] font-bold text-[#0F0F0F]">Registro de Operador</span>
+                    </div>
+                  ) : (
                   <div className="space-y-2">
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
                       TIPO DE CUENTA
                     </label>
-                    
+
                     <div className="grid grid-cols-1 gap-2">
-                      
+
                       {/* Operator Option */}
-                      <div 
+                      <div
                         onClick={() => setRegisterRole('operator')}
                         className={`p-3 border text-left cursor-pointer transition-colors ${
-                          registerRole === 'operator' 
-                            ? 'bg-[#E8F5ED] border-[#2B44C7]' 
+                          registerRole === 'operator'
+                            ? 'bg-[#E8F5ED] border-[#2B44C7]'
                             : 'bg-white border-[#E2E2DE] hover:bg-[#F9F9F7]'
                         }`}
                       >
@@ -2578,11 +2750,11 @@ export default function App() {
                       </div>
 
                       {/* Owner Option */}
-                      <div 
+                      <div
                         onClick={() => setRegisterRole('owner')}
                         className={`p-3 border text-left cursor-pointer transition-colors ${
-                          registerRole === 'owner' 
-                            ? 'bg-[#E8F5ED] border-[#2B44C7]' 
+                          registerRole === 'owner'
+                            ? 'bg-[#E8F5ED] border-[#2B44C7]'
                             : 'bg-white border-[#E2E2DE] hover:bg-[#F9F9F7]'
                         }`}
                       >
@@ -2596,11 +2768,11 @@ export default function App() {
                       </div>
 
                       {/* Renter Option */}
-                      <div 
+                      <div
                         onClick={() => setRegisterRole('renter')}
                         className={`p-3 border text-left cursor-pointer transition-colors ${
-                          registerRole === 'renter' 
-                            ? 'bg-[#E8F5ED] border-[#2B44C7]' 
+                          registerRole === 'renter'
+                            ? 'bg-[#E8F5ED] border-[#2B44C7]'
                             : 'bg-white border-[#E2E2DE] hover:bg-[#F9F9F7]'
                         }`}
                       >
@@ -2615,13 +2787,14 @@ export default function App() {
 
                     </div>
                   </div>
+                  )}
 
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
                       Nombre Completo
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       required
                       placeholder="Ej: Ing. Jorge Iraheta"
                       value={regName}
@@ -2632,10 +2805,54 @@ export default function App() {
 
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                      DUI
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      inputMode="numeric"
+                      placeholder="01234567-8"
+                      value={regDui}
+                      onChange={(e) => {
+                        setRegDui(formatDui(e.target.value));
+                        setRegDuiError(null);
+                        setDuiConflictMessage(false);
+                      }}
+                      onBlur={() => {
+                        if (regDui && !DUI_REGEX.test(regDui)) {
+                          setRegDuiError('Formato inválido. Ejemplo: 01234567-8');
+                        }
+                      }}
+                      maxLength={10}
+                      className={`w-full bg-white border text-[#0F0F0F] text-[13px] font-medium p-3 focus:outline-none font-mono-imaq ${
+                        regDuiError ? 'border-[#991B1B]' : 'border-[#E2E2DE] focus:border-[#2B44C7]'
+                      }`}
+                    />
+                    {regDuiError && <p className="text-[11px] text-[#991B1B] mt-1">{regDuiError}</p>}
+                    {duiConflictMessage && (
+                      <p className="text-[11px] text-[#991B1B] mt-1">
+                        Ya existe una cuenta con este DUI.{' '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthTab('login');
+                            setShowForgotPassword(true);
+                            setForgotEmail(regEmail);
+                          }}
+                          className="font-bold underline hover:text-[#0F0F0F]"
+                        >
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
                       Correo Electrónico
                     </label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       required
                       placeholder="Ej: jorge@infraestructuras.sv"
                       value={regEmail}
@@ -2648,8 +2865,8 @@ export default function App() {
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
                       WhatsApp (+503)
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       required
                       placeholder="Ej: 71234567"
                       value={regPhone}
@@ -2662,8 +2879,8 @@ export default function App() {
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
                       Contraseña
                     </label>
-                    <input 
-                      type="password" 
+                    <input
+                      type="password"
                       required
                       placeholder="Cree una contraseña segura"
                       value={regPassword}
@@ -2671,6 +2888,70 @@ export default function App() {
                       className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
                     />
                   </div>
+
+                  {isOperatorOnlyRegistration && (
+                    <>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          Tipos de máquina que opera
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {OPERATOR_MACHINE_TYPES.map((tipo) => {
+                            const checked = operatorMachineTypes.includes(tipo);
+                            return (
+                              <label
+                                key={tipo}
+                                className={`flex items-center gap-2 p-2 border text-[12px] font-medium cursor-pointer transition-colors ${
+                                  checked ? 'bg-[#E8F5ED] border-[#2B44C7] text-[#0F0F0F]' : 'bg-white border-[#E2E2DE] text-[#3A3A3A]'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) =>
+                                    setOperatorMachineTypes((prev) =>
+                                      e.target.checked ? [...prev, tipo] : prev.filter((t) => t !== tipo)
+                                    )
+                                  }
+                                  className="w-3.5 h-3.5 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                                />
+                                {tipo}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                            Años de experiencia
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="Ej: 5"
+                            value={operatorExperience}
+                            onChange={(e) => setOperatorExperience(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                            Tarifa por día (USD)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="Ej: 30"
+                            value={operatorRate}
+                            onChange={(e) => setOperatorRate(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <button
                     type="submit"

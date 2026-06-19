@@ -1,6 +1,7 @@
 import type { RolUsuario, UsuarioApi, User } from '../types';
 
 const TOKEN_KEY = 'imaq_token';
+const REFRESH_TOKEN_KEY = 'imaq_refresh_token';
 const USER_KEY = 'imaq_user';
 
 /* ───────────────────────── TOKEN STORAGE ───────────────────────── */
@@ -15,6 +16,18 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setRefreshToken(token: string): void {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+}
+
+export function clearRefreshToken(): void {
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 interface JwtPayload {
@@ -43,7 +56,7 @@ export function isTokenExpired(token: string): boolean {
 
 export function getCurrentUser(): User | null {
   const token = getToken();
-  if (!token || isTokenExpired(token)) {
+  if (!token) {
     return null;
   }
   const saved = localStorage.getItem(USER_KEY);
@@ -64,13 +77,17 @@ export function isAuthenticated(): boolean {
 
 /* ───────────────────────── SESSION HELPERS ───────────────────────── */
 
-export function saveSession(token: string, user: User): void {
-  setToken(token);
+export function saveSession(accessToken: string, user: User, refreshToken?: string | null): void {
+  setToken(accessToken);
+  if (refreshToken) {
+    setRefreshToken(refreshToken);
+  }
   setCurrentUser(user);
 }
 
 export function logout(): void {
   clearToken();
+  clearRefreshToken();
   setCurrentUser(null);
 }
 

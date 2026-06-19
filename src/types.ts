@@ -102,6 +102,7 @@ export interface UsuarioCreateApi {
   telefono?: string | null;
   rol: RolUsuario;
   password: string;
+  dui: string;
 }
 
 export interface UsuarioUpdateApi {
@@ -126,12 +127,26 @@ export interface UsuarioPublicoApi {
 
 export interface TokenApi {
   access_token: string;
+  refresh_token?: string | null;
   token_type: string;
 }
 
 export interface LoginRequestApi {
   email: string;
   password: string;
+}
+
+export interface RefreshTokenRequestApi {
+  refresh_token: string;
+}
+
+export interface RecuperarPasswordRequestApi {
+  email: string;
+}
+
+export interface ResetPasswordRequestApi {
+  token: string;
+  nueva_password: string;
 }
 
 export type TipoPrecio = 'hora' | 'dia';
