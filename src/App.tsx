@@ -2570,21 +2570,21 @@ export default function App() {
             {/* Overlay click away */}
             <div className="absolute inset-0" onClick={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }} />
 
-            {/* Modal layout with zero radius sharp geometry */}
-            <motion.div 
+            {/* Modal layout with zero radius sharp geometry — bounded height with internal scroll */}
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white border border-[#E2E2DE] w-full max-w-[420px] overflow-hidden relative z-10"
+              className="bg-white border border-[#E2E2DE] w-full max-w-[420px] max-h-[90vh] flex flex-col relative z-10"
             >
-              
-              {/* Title & Brand Intro */}
-              <div className="p-8 pb-4 text-center space-y-2">
-                <div className="flex justify-between items-center mb-2">
+
+              {/* Title & Brand Intro (fixed, doesn't scroll) */}
+              <div className="p-5 pb-3 text-center space-y-1.5 shrink-0">
+                <div className="flex justify-between items-center mb-1">
                   <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#0F0F0F] text-left">
                     i<span className="text-[#2B44C7]">M</span>aq
                   </span>
-                  
+
                   <button
                     onClick={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }}
                     className="text-[#717171] hover:text-[#0F0F0F]"
@@ -2597,8 +2597,8 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Toggle switch tabs */}
-              <div className="grid grid-cols-2 border-t border-b border-[#E2E2DE] divide-x divide-[#E2E2DE]">
+              {/* Toggle switch tabs (fixed, doesn't scroll) */}
+              <div className="grid grid-cols-2 border-t border-b border-[#E2E2DE] divide-x divide-[#E2E2DE] shrink-0">
                 <button
                   onClick={() => { setAuthTab('login'); }}
                   className={`py-3 text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer ${
@@ -2625,7 +2625,8 @@ export default function App() {
               {authTab === 'login' ? (
                 showForgotPassword ? (
                   /* Forgot-password sub-step, inline within the login tab */
-                  <form onSubmit={handleForgotPasswordSubmit} className="p-8 space-y-4">
+                  <form onSubmit={handleForgotPasswordSubmit} className="flex flex-col flex-1 min-h-0">
+                    <div className="overflow-y-auto flex-1 p-8 space-y-4">
                     <button
                       type="button"
                       onClick={resetForgotPasswordFlow}
@@ -2658,6 +2659,11 @@ export default function App() {
                             className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
                           />
                         </div>
+                      </>
+                    )}
+                    </div>
+                    {!forgotSent && (
+                      <div className="p-8 pt-4 border-t border-[#E2E2DE] shrink-0">
                         <button
                           type="submit"
                           disabled={forgotLoading}
@@ -2665,11 +2671,12 @@ export default function App() {
                         >
                           {forgotLoading ? 'Enviando...' : 'Enviar instrucciones'}
                         </button>
-                      </>
+                      </div>
                     )}
                   </form>
                 ) : (
-                <form onSubmit={handleLoginSubmit} className="p-8 space-y-4">
+                <form onSubmit={handleLoginSubmit} className="flex flex-col flex-1 min-h-0">
+                  <div className="overflow-y-auto flex-1 p-8 space-y-4">
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
                       Correo Electrónico
@@ -2697,30 +2704,34 @@ export default function App() {
                       className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
                     />
                   </div>
+                  </div>
 
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
-                  >
-                    {authLoading ? 'Ingresando...' : 'Ingresar con mi cuenta'}
-                  </button>
+                  <div className="p-8 pt-4 border-t border-[#E2E2DE] space-y-3 shrink-0">
+                    <button
+                      type="submit"
+                      disabled={authLoading}
+                      className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                    >
+                      {authLoading ? 'Ingresando...' : 'Ingresar con mi cuenta'}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className="w-full text-center text-[12px] font-semibold text-[#2B44C7] hover:underline"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="w-full text-center text-[12px] font-semibold text-[#2B44C7] hover:underline"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
                 </form>
                 )
               ) : (
                 /* Register block with Account types grid selector */
-                <form onSubmit={handleRegisterSubmit} className="p-8 space-y-4">
+                <form onSubmit={handleRegisterSubmit} className="flex flex-col flex-1 min-h-0">
+                <div className="overflow-y-auto flex-1 p-8 space-y-3">
 
                   {isOperatorOnlyRegistration ? (
-                    <div className="bg-[#E8F5ED] border border-[#2B44C7]/30 p-3 flex items-center gap-2">
+                    <div className="bg-[#E8F5ED] border border-[#2B44C7]/30 p-2 flex items-center gap-2">
                       <span className="text-[14px]">👷</span>
                       <span className="text-[13px] font-bold text-[#0F0F0F]">Registro de Operador</span>
                     </div>
@@ -2903,7 +2914,7 @@ export default function App() {
                         <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
                           Tipos de máquina que opera
                         </label>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                           {OPERATOR_MACHINE_TYPES.map((tipo) => {
                             const checked = operatorMachineTypes.includes(tipo);
                             return (
@@ -2961,6 +2972,9 @@ export default function App() {
                     </>
                   )}
 
+                </div>
+
+                <div className="p-6 border-t border-[#E2E2DE] shrink-0">
                   <button
                     type="submit"
                     disabled={authLoading}
@@ -2968,6 +2982,7 @@ export default function App() {
                   >
                     {authLoading ? 'Creando cuenta...' : 'Crear cuenta gratis'}
                   </button>
+                </div>
 
                 </form>
               )}
