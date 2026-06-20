@@ -180,6 +180,7 @@ export function mapOperadorToOperator(operador: OperadorApi, index = 0): Operato
     loc: 'El Salvador',
     verified: operador.verificado,
     img: FALLBACK_OPERATOR_IMAGES[index % FALLBACK_OPERATOR_IMAGES.length],
+    tarifaDia: operador.tarifa_dia,
   };
 }
 

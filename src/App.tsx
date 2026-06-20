@@ -35,8 +35,8 @@ import {
   ImagePlus,
   Trash2,
 } from 'lucide-react';
-import { Machine, Operator, User as UserProfile, ToastMessage, MachineStatus, DepartamentoApi, CalificacionApi } from './types';
-import { fetchMachines, fetchOperators, mapMaquinaToMachine } from './data';
+import { Machine, Operator, User as UserProfile, ToastMessage, DepartamentoApi, CalificacionApi } from './types';
+import { fetchMachines, fetchOperators, mapMaquinaToMachine, mapOperadorToOperator } from './data';
 import {
   ApiError,
   actualizarMaquina,
@@ -48,6 +48,8 @@ import {
   listarCalificacionesPorMaquina,
   listarDepartamentos,
   listarFavoritos,
+  listarMaquinas,
+  listarOperadores,
   loginUsuario,
   obtenerPerfilActual,
   recuperarPassword,
@@ -139,11 +141,6 @@ export default function App() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
-  // Filter operator State
-  const [operatorFilter, setOperatorFilter] = useState<string>('Todas las especialidades');
-
-  // Machine category filter (built dynamically from the loaded catalog)
-
   // Favorite states: local optimistic set of machine ids + the backend
   // favorito row id for each one (needed to call DELETE /favoritos/{id}).
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -161,11 +158,33 @@ export default function App() {
   // Top-right profile dropdown (desktop navbar)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  // Always-visible machine filters (type, department, max price, price unit)
+  /* ───────────────────────── MACHINE SEARCH & FILTERS (server-side) ───────────────────────── */
+  const [searchMachines, setSearchMachines] = useState('');
+  const [debouncedSearchMachines, setDebouncedSearchMachines] = useState('');
   const [filterTipo, setFilterTipo] = useState('Todos');
   const [filterDepartamentoId, setFilterDepartamentoId] = useState<number | 'todos'>('todos');
   const [filterPrecioMax, setFilterPrecioMax] = useState('');
   const [filterTipoPrecio, setFilterTipoPrecio] = useState<'todos' | 'hora' | 'dia'>('todos');
+  const [filterEstado, setFilterEstado] = useState<'todos' | 'disponible' | 'alquilada' | 'mantenimiento'>('todos');
+  const [filterIncluyeOperador, setFilterIncluyeOperador] = useState<'todos' | 'si' | 'no'>('todos');
+  const [filterOrdenMaquinas, setFilterOrdenMaquinas] = useState<'ninguno' | 'precio_asc' | 'precio_desc' | 'reciente'>('ninguno');
+
+  const [catalogMachines, setCatalogMachines] = useState<Machine[]>([]);
+  const [catalogMachinesLoading, setCatalogMachinesLoading] = useState(true);
+  const [catalogMachinesError, setCatalogMachinesError] = useState<string | null>(null);
+
+  /* ───────────────────────── OPERATOR SEARCH & FILTERS (server-side) ───────────────────────── */
+  const [searchOperators, setSearchOperators] = useState('');
+  const [debouncedSearchOperators, setDebouncedSearchOperators] = useState('');
+  const [operatorFilterMaquina, setOperatorFilterMaquina] = useState('Todos');
+  const [operatorFilterDepartamentoId, setOperatorFilterDepartamentoId] = useState<number | 'todos'>('todos');
+  const [operatorFilterTarifaMax, setOperatorFilterTarifaMax] = useState('');
+  const [operatorFilterVerificado, setOperatorFilterVerificado] = useState(false);
+  const [operatorFilterOrden, setOperatorFilterOrden] = useState<'ninguno' | 'tarifa_asc' | 'tarifa_desc' | 'mejor_calificacion'>('ninguno');
+
+  const [catalogOperators, setCatalogOperators] = useState<Operator[]>([]);
+  const [catalogOperatorsLoading, setCatalogOperatorsLoading] = useState(true);
+  const [catalogOperatorsError, setCatalogOperatorsError] = useState<string | null>(null);
 
   // Form State for Publish Equipment Page
   const [publishStep, setPublishStep] = useState<1 | 2 | 3>(1);
@@ -230,6 +249,79 @@ export default function App() {
     loadOperators();
     listarDepartamentos().then(setDepartments).catch(() => setDepartments([]));
   }, []);
+
+  // Debounce the free-text search inputs (300ms) before they trigger a fetch.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearchMachines(searchMachines), 300);
+    return () => clearTimeout(id);
+  }, [searchMachines]);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearchOperators(searchOperators), 300);
+    return () => clearTimeout(id);
+  }, [searchOperators]);
+
+  const loadCatalogMachines = () => {
+    setCatalogMachinesLoading(true);
+    setCatalogMachinesError(null);
+    listarMaquinas({
+      buscar: debouncedSearchMachines || undefined,
+      estado: filterEstado !== 'todos' ? filterEstado : undefined,
+      tipo: filterTipo !== 'Todos' ? filterTipo : undefined,
+      departamento_id: filterDepartamentoId !== 'todos' ? filterDepartamentoId : undefined,
+      precio_max: filterPrecioMax ? Number(filterPrecioMax) : undefined,
+      tipo_precio: filterTipoPrecio !== 'todos' ? filterTipoPrecio : undefined,
+      incluye_operador: filterIncluyeOperador !== 'todos' ? filterIncluyeOperador === 'si' : undefined,
+      orden: filterOrdenMaquinas !== 'ninguno' ? filterOrdenMaquinas : undefined,
+    })
+      .then((maquinas) => setCatalogMachines(maquinas.map(mapMaquinaToMachine)))
+      .catch((error) => {
+        const message = error instanceof ApiError ? error.message : 'No se pudo conectar con el servidor de iMaq';
+        setCatalogMachinesError(message);
+      })
+      .finally(() => setCatalogMachinesLoading(false));
+  };
+
+  // Server-side machine search/filtering — refetches whenever any filter changes.
+  useEffect(loadCatalogMachines, [
+    debouncedSearchMachines,
+    filterEstado,
+    filterTipo,
+    filterDepartamentoId,
+    filterPrecioMax,
+    filterTipoPrecio,
+    filterIncluyeOperador,
+    filterOrdenMaquinas,
+  ]);
+
+  const loadCatalogOperators = () => {
+    setCatalogOperatorsLoading(true);
+    setCatalogOperatorsError(null);
+    listarOperadores({
+      buscar: debouncedSearchOperators || undefined,
+      maquina: operatorFilterMaquina !== 'Todos' ? operatorFilterMaquina : undefined,
+      departamento_id: operatorFilterDepartamentoId !== 'todos' ? operatorFilterDepartamentoId : undefined,
+      tarifa_max: operatorFilterTarifaMax ? Number(operatorFilterTarifaMax) : undefined,
+      verificado: operatorFilterVerificado ? true : undefined,
+      orden: operatorFilterOrden !== 'ninguno' ? operatorFilterOrden : undefined,
+    })
+      .then((operadores) => setCatalogOperators(operadores.map(mapOperadorToOperator)))
+      .catch((error) => {
+        const message = error instanceof ApiError ? error.message : 'No se pudo conectar con el servidor de iMaq';
+        setCatalogOperatorsError(message);
+      })
+      .finally(() => setCatalogOperatorsLoading(false));
+  };
+
+  // Server-side operator search/filtering — refetches whenever any filter changes.
+  useEffect(loadCatalogOperators, [
+    debouncedSearchOperators,
+    operatorFilterMaquina,
+    operatorFilterDepartamentoId,
+    operatorFilterTarifaMax,
+    operatorFilterVerificado,
+    operatorFilterOrden,
+  ]);
 
   // Picks up the one-shot toast left by ResetPasswordPage right before it
   // redirects back here (no shared router/state across that page change).
@@ -717,27 +809,43 @@ export default function App() {
     navigateTo('home');
   };
 
-  // Filter operator items appropriately by selected strategy
-  const filteredOperators = operatorFilter === 'Todas las especialidades'
-    ? operators
-    : operators.filter(o => o.specialty.toLowerCase().includes(operatorFilter.toLowerCase()));
-
-  // Distinct machine types present in the loaded catalog, for the type filter
+  // Distinct machine types present in the full catalog, for the type filter options
+  // (always derived from the unfiltered `machines` list so options don't shrink as you filter).
   const machineTypes = ['Todos', ...Array.from(new Set(machines.map((m) => m.cat)))];
-  const filteredMachines = machines.filter((m) => {
-    if (filterTipo !== 'Todos' && m.cat !== filterTipo) return false;
-    if (filterDepartamentoId !== 'todos' && m.departamentoId !== filterDepartamentoId) return false;
-    if (filterPrecioMax && m.price > Number(filterPrecioMax)) return false;
-    if (filterTipoPrecio !== 'todos' && m.priceUnit !== filterTipoPrecio) return false;
-    return true;
-  });
   const machineFiltersActive =
-    filterTipo !== 'Todos' || filterDepartamentoId !== 'todos' || !!filterPrecioMax || filterTipoPrecio !== 'todos';
+    !!searchMachines ||
+    filterTipo !== 'Todos' ||
+    filterDepartamentoId !== 'todos' ||
+    !!filterPrecioMax ||
+    filterTipoPrecio !== 'todos' ||
+    filterEstado !== 'todos' ||
+    filterIncluyeOperador !== 'todos' ||
+    filterOrdenMaquinas !== 'ninguno';
   const clearMachineFilters = () => {
+    setSearchMachines('');
     setFilterTipo('Todos');
     setFilterDepartamentoId('todos');
     setFilterPrecioMax('');
     setFilterTipoPrecio('todos');
+    setFilterEstado('todos');
+    setFilterIncluyeOperador('todos');
+    setFilterOrdenMaquinas('ninguno');
+  };
+
+  const operatorFiltersActive =
+    !!searchOperators ||
+    operatorFilterMaquina !== 'Todos' ||
+    operatorFilterDepartamentoId !== 'todos' ||
+    !!operatorFilterTarifaMax ||
+    operatorFilterVerificado ||
+    operatorFilterOrden !== 'ninguno';
+  const clearOperatorFilters = () => {
+    setSearchOperators('');
+    setOperatorFilterMaquina('Todos');
+    setOperatorFilterDepartamentoId('todos');
+    setOperatorFilterTarifaMax('');
+    setOperatorFilterVerificado(false);
+    setOperatorFilterOrden('ninguno');
   };
 
   // Machines owned by the logged-in owner (used by the dashboard)
@@ -1130,7 +1238,7 @@ export default function App() {
               </div>
               {!machinesLoading && !machinesError && (
                 <button
-                  onClick={loadMachines}
+                  onClick={() => { loadMachines(); loadCatalogMachines(); }}
                   className="text-[13px] font-semibold text-[#2B44C7] hover:underline text-left self-start sm:self-auto flex items-center gap-1.5"
                 >
                   <RefreshCw size={13} /> Actualizar catálogo
@@ -1138,8 +1246,20 @@ export default function App() {
               )}
             </div>
 
-            {/* Always-visible filter bar: tipo, departamento, precio máximo, tipo de precio */}
-            <div className="bg-white border border-[#E2E2DE] p-4 mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Free-text search */}
+            <div className="relative mb-4">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#717171]" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, descripción, marca, ubicación..."
+                value={searchMachines}
+                onChange={(e) => setSearchMachines(e.target.value)}
+                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none"
+              />
+            </div>
+
+            {/* Always-visible filter bar */}
+            <div className="bg-white border border-[#E2E2DE] p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tipo de máquina</label>
                 <select
@@ -1192,6 +1312,47 @@ export default function App() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Estado</label>
+                <select
+                  value={filterEstado}
+                  onChange={(e) => setFilterEstado(e.target.value as typeof filterEstado)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="disponible">Disponible</option>
+                  <option value="alquilada">Alquilada</option>
+                  <option value="mantenimiento">Mantenimiento</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Incluye operador</label>
+                <select
+                  value={filterIncluyeOperador}
+                  onChange={(e) => setFilterIncluyeOperador(e.target.value as typeof filterIncluyeOperador)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="si">Sí</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Ordenar por</label>
+                <select
+                  value={filterOrdenMaquinas}
+                  onChange={(e) => setFilterOrdenMaquinas(e.target.value as typeof filterOrdenMaquinas)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="ninguno">Relevancia</option>
+                  <option value="precio_asc">Precio: menor a mayor</option>
+                  <option value="precio_desc">Precio: mayor a menor</option>
+                  <option value="reciente">Más reciente</option>
+                </select>
+              </div>
+
               <div className="flex items-end">
                 <button
                   onClick={clearMachineFilters}
@@ -1203,8 +1364,16 @@ export default function App() {
               </div>
             </div>
 
+            {/* Results counter */}
+            {!catalogMachinesLoading && !catalogMachinesError && (
+              <p className="text-[12px] text-[#717171] mb-6">
+                Mostrando <strong className="text-[#0F0F0F]">{catalogMachines.length}</strong> de{' '}
+                <strong className="text-[#0F0F0F]">{machines.length}</strong> máquinas
+              </p>
+            )}
+
             {/* LOADING SKELETON */}
-            {machinesLoading && (
+            {catalogMachinesLoading && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="bg-white border border-[#E2E2DE] overflow-hidden animate-pulse">
@@ -1220,13 +1389,13 @@ export default function App() {
             )}
 
             {/* ERROR STATE */}
-            {!machinesLoading && machinesError && (
+            {!catalogMachinesLoading && catalogMachinesError && (
               <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E2E2DE] py-16 px-6">
                 <AlertTriangle size={28} className="text-[#991B1B] mb-3" />
                 <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">No se pudo cargar el catálogo</h3>
-                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">{machinesError}</p>
+                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">{catalogMachinesError}</p>
                 <button
-                  onClick={loadMachines}
+                  onClick={loadCatalogMachines}
                   className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer flex items-center gap-2"
                 >
                   <RefreshCw size={14} /> Reintentar
@@ -1234,8 +1403,8 @@ export default function App() {
               </div>
             )}
 
-            {/* EMPTY STATE */}
-            {!machinesLoading && !machinesError && machines.length === 0 && (
+            {/* EMPTY STATE (no machines at all) */}
+            {!catalogMachinesLoading && !catalogMachinesError && machines.length === 0 && (
               <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E2E2DE] py-16 px-6">
                 <Wrench size={28} className="text-[#717171] mb-3" />
                 <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">Aún no hay máquinas disponibles</h3>
@@ -1252,7 +1421,7 @@ export default function App() {
             )}
 
             {/* No results for the active filters */}
-            {!machinesLoading && !machinesError && machines.length > 0 && filteredMachines.length === 0 && (
+            {!catalogMachinesLoading && !catalogMachinesError && machines.length > 0 && catalogMachines.length === 0 && (
               <div className="text-center bg-white border border-[#E2E2DE] py-12 px-6">
                 <p className="text-[13px] text-[#717171]">
                   Ningún equipo coincide con los filtros seleccionados.{' '}
@@ -1264,17 +1433,17 @@ export default function App() {
             )}
 
             {/* Machine cards grid */}
-            {!machinesLoading && !machinesError && filteredMachines.length > 0 && (
+            {!catalogMachinesLoading && !catalogMachinesError && catalogMachines.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {filteredMachines.map((machine) => {
+              {catalogMachines.map((machine) => {
                 const isFavorite = favorites.includes(machine.id);
                 return (
-                  <div 
+                  <div
                     key={machine.id}
                     onClick={() => setSelectedMachine(machine)}
                     className="bg-white border border-[#E2E2DE] overflow-hidden group hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,.08)] transition-all duration-300 flex flex-col justify-between cursor-pointer"
                   >
-                    
+
                     {/* Image space */}
                     <div className="h-[180px] overflow-hidden relative bg-[#E2E2DE]">
                       <img
@@ -1282,11 +1451,11 @@ export default function App() {
                         alt={machine.name}
                         className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                       />
-                      
+
                       {/* Status Badges */}
                       <span className={`absolute top-3 left-3 text-[9px] font-bold uppercase tracking-wider px-2 py-1 ${
-                        machine.status === 'available' 
-                          ? 'bg-[#E8F5ED] text-[#16793A]' 
+                        machine.status === 'available'
+                          ? 'bg-[#E8F5ED] text-[#16793A]'
                           : machine.status === 'rented'
                           ? 'bg-[#FEF2F2] text-[#991B1B]'
                           : 'bg-[#FFF9E6] text-[#C88010]'
@@ -1295,7 +1464,7 @@ export default function App() {
                       </span>
 
                       {/* Favorite Button */}
-                      <button 
+                      <button
                         onClick={(e) => toggleFavorite(e, machine.id)}
                         className="absolute top-3 right-3 w-7 h-7 bg-white rounded-none flex items-center justify-center text-[#717171] hover:text-[#991B1B] border border-[#E2E2DE] transition-colors"
                       >
@@ -1306,6 +1475,24 @@ export default function App() {
                     {/* Card Body */}
                     <div className="p-4 flex-1 flex flex-col justify-between">
                       <div>
+                        {/* Extra badges: operator / fuel / brand / year */}
+                        {(machine.incluyeOperador || machine.incluyeCombustible === false || machine.marca || machine.anio) && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {machine.incluyeOperador && (
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#E8F5ED] text-[#16793A]">Incluye operador</span>
+                            )}
+                            {machine.incluyeCombustible === false && (
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#FFF9E6] text-[#C88010]">Sin combustible</span>
+                            )}
+                            {machine.marca && (
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#F5F4F0] text-[#3A3A3A]">{machine.marca}</span>
+                            )}
+                            {machine.anio && (
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#F5F4F0] text-[#3A3A3A]">{machine.anio}</span>
+                            )}
+                          </div>
+                        )}
+
                         {/* Specs row */}
                         <div className="flex gap-4 mb-3 border-b border-[#F5F4F0] pb-2">
                           <div>
@@ -1326,7 +1513,7 @@ export default function App() {
                         <span className="block font-mono-imaq text-[10px] text-[#717171] uppercase tracking-[0.04em] mb-0.5">
                           {machine.cat}
                         </span>
-                        
+
                         {/* Machine Name */}
                         <h4 className="text-[15px] font-bold text-[#0F0F0F] tracking-tight group-hover:text-[#2B44C7] transition-colors mb-4">
                           {machine.name}
@@ -1344,7 +1531,7 @@ export default function App() {
                         </div>
 
                         {/* Action WhatsApp Button */}
-                        <button 
+                        <button
                           onClick={(e) => handleWhatsAppContact(e, machine)}
                           className="w-8 h-8 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
                           title="Contactar por WhatsApp"
@@ -1378,42 +1565,110 @@ export default function App() {
               <h1 className="text-[18px] sm:text-[20px] font-extrabold text-[#0F0F0F] tracking-tight">
                 Directorio de Operadores
               </h1>
-
-              <div className="relative w-[220px] sm:w-[260px] shrink-0">
-                <select
-                  value={operatorFilter}
-                  onChange={(e) => setOperatorFilter(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium py-2 pl-3 pr-9 focus:border-[#2B44C7] focus:outline-none focus:ring-0 appearance-none rounded-none cursor-pointer"
-                >
-                  <option>Todas las especialidades</option>
-                  <option>Excavadora Hidráulica</option>
-                  <option>Operador de Grúa Torre</option>
-                  <option>Motoniveladora Especializada</option>
-                  <option>Bulldozer / Compactadora</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#717171]">
-                  <ChevronDown size={14} />
-                </div>
-              </div>
             </div>
           </section>
 
           {/* OPERATORS GRID */}
           <section className="py-16 max-w-[1140px] mx-auto px-4">
 
-            {/* Active filter chip with clear button — visual feedback for the select above */}
-            {operatorFilter !== 'Todas las especialidades' && (
-              <div className="flex items-center gap-2 mb-6 -mt-4">
-                <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 bg-[#2B44C7] text-white flex items-center gap-2">
-                  {operatorFilter}
-                  <button onClick={() => setOperatorFilter('Todas las especialidades')} className="hover:text-[#E8A020]">
-                    <X size={12} />
-                  </button>
-                </span>
-              </div>
-            )}
+            {/* Free-text search */}
+            <div className="relative mb-4">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#717171]" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre o certificaciones..."
+                value={searchOperators}
+                onChange={(e) => setSearchOperators(e.target.value)}
+                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none"
+              />
+            </div>
 
-            {operatorsLoading && (
+            {/* Always-visible filter bar */}
+            <div className="bg-white border border-[#E2E2DE] p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tipo de máquina</label>
+                <select
+                  value={operatorFilterMaquina}
+                  onChange={(e) => setOperatorFilterMaquina(e.target.value)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="Todos">Todos</option>
+                  {OPERATOR_MACHINE_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Departamento</label>
+                <select
+                  value={operatorFilterDepartamentoId}
+                  onChange={(e) => setOperatorFilterDepartamentoId(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="todos">Todos</option>
+                  {departments.map((dep) => (
+                    <option key={dep.id} value={dep.id}>{dep.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tarifa máxima (USD/día)</label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Sin límite"
+                  value={operatorFilterTarifaMax}
+                  onChange={(e) => setOperatorFilterTarifaMax(e.target.value)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Ordenar por</label>
+                <select
+                  value={operatorFilterOrden}
+                  onChange={(e) => setOperatorFilterOrden(e.target.value as typeof operatorFilterOrden)}
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                >
+                  <option value="ninguno">Relevancia</option>
+                  <option value="tarifa_asc">Tarifa: menor a mayor</option>
+                  <option value="tarifa_desc">Tarifa: mayor a menor</option>
+                  <option value="mejor_calificacion">Mejor calificación</option>
+                </select>
+              </div>
+
+              <div className="flex items-end gap-2">
+                <label className="flex items-center gap-2 h-[38px] px-3 border border-[#E2E2DE] flex-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={operatorFilterVerificado}
+                    onChange={(e) => setOperatorFilterVerificado(e.target.checked)}
+                    className="w-3.5 h-3.5 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                  />
+                  <span className="text-[11px] font-bold text-[#3A3A3A]">Solo verificados</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+              {!catalogOperatorsLoading && !catalogOperatorsError && (
+                <p className="text-[12px] text-[#717171]">
+                  Mostrando <strong className="text-[#0F0F0F]">{catalogOperators.length}</strong> de{' '}
+                  <strong className="text-[#0F0F0F]">{operators.length}</strong> operadores
+                </p>
+              )}
+              <button
+                onClick={clearOperatorFilters}
+                disabled={!operatorFiltersActive}
+                className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-[#E2E2DE] text-[#717171] hover:border-[#991B1B] hover:text-[#991B1B] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+
+            {catalogOperatorsLoading && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="bg-white border border-[#E2E2DE] overflow-hidden animate-pulse">
@@ -1427,13 +1682,13 @@ export default function App() {
               </div>
             )}
 
-            {!operatorsLoading && operatorsError && (
+            {!catalogOperatorsLoading && catalogOperatorsError && (
               <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E2E2DE] py-16 px-6 mb-12">
                 <AlertTriangle size={28} className="text-[#991B1B] mb-3" />
                 <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">No se pudo cargar el directorio</h3>
-                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">{operatorsError}</p>
+                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">{catalogOperatorsError}</p>
                 <button
-                  onClick={loadOperators}
+                  onClick={loadCatalogOperators}
                   className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer flex items-center gap-2"
                 >
                   <RefreshCw size={14} /> Reintentar
@@ -1441,14 +1696,14 @@ export default function App() {
               </div>
             )}
 
-            {!operatorsLoading && !operatorsError && filteredOperators.length === 0 && (
+            {!catalogOperatorsLoading && !catalogOperatorsError && catalogOperators.length === 0 && (
               <div className="flex flex-col items-center text-center bg-white border border-[#E2E2DE] py-12 px-6 mb-12">
                 <p className="text-[13px] text-[#717171] mb-4">
                   {operators.length === 0
                     ? 'Aún no hay operadores registrados.'
-                    : `No hay operadores para "${operatorFilter}".`}
+                    : 'Ningún operador coincide con los filtros seleccionados.'}
                 </p>
-                {operators.length === 0 && (
+                {operators.length === 0 ? (
                   <button
                     onClick={() => {
                       setRegisterRole('operator');
@@ -1460,23 +1715,27 @@ export default function App() {
                   >
                     Registrarme como operador
                   </button>
+                ) : (
+                  <button onClick={clearOperatorFilters} className="text-[#2B44C7] font-semibold text-[12px] hover:underline">
+                    Limpiar filtros
+                  </button>
                 )}
               </div>
             )}
 
-            {!operatorsLoading && !operatorsError && filteredOperators.length > 0 && (
+            {!catalogOperatorsLoading && !catalogOperatorsError && catalogOperators.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-              {filteredOperators.map((operator) => (
-                <div 
+              {catalogOperators.map((operator) => (
+                <div
                   key={operator.id}
                   className="bg-white border border-[#E2E2DE] overflow-hidden group hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,.08)] transition-all duration-300 flex flex-col justify-between"
                 >
-                  
+
                   {/* Photo area */}
                   <div className="h-[220px] overflow-hidden relative bg-[#E2E2DE]">
-                    <img 
-                      src={operator.img} 
-                      alt={operator.name} 
+                    <img
+                      src={operator.img}
+                      alt={operator.name}
                       className="w-full h-full object-cover object-top group-hover:scale-[1.04] transition-transform duration-300"
                     />
 
@@ -1502,9 +1761,17 @@ export default function App() {
                         </div>
                       </div>
 
-                      <p className="text-[12px] text-[#717171] mb-5 leading-tight font-medium">
+                      <p className="text-[12px] text-[#717171] mb-3 leading-tight font-medium">
                         {operator.specialty}
                       </p>
+
+                      {operator.tarifaDia != null && (
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                          <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#FFF9E6] text-[#C88010]">
+                            ${operator.tarifaDia}/día
+                          </span>
+                        </div>
+                      )}
 
                       {/* Meta Grid info */}
                       <div className="grid grid-cols-2 gap-4 border-t border-[#F5F4F0] pt-4 mb-6">
@@ -1520,7 +1787,7 @@ export default function App() {
                     </div>
 
                     {/* Contact Button */}
-                    <button 
+                    <button
                       onClick={(e) => handleOperatorContact(e, operator)}
                       className="w-full mt-auto py-2.5 border-[1.5px] border-[#0F0F0F] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-[0.04em] hover:bg-[#0F0F0F] hover:text-white transition-colors uppercase-spacing mb-1 cursor-pointer"
                     >
@@ -1533,16 +1800,6 @@ export default function App() {
               ))}
             </div>
             )}
-
-            {/* Extra call bottom */}
-            <div className="flex justify-center">
-              <button 
-                onClick={() => addToast('Registro completo listo. Actualmente visualizando el directorio activo de El Salvador.', 'info')}
-                className="text-[13px] font-bold uppercase text-[#2B44C7] hover:underline underline-offset-4 tracking-wider cursor-pointer"
-              >
-                VER TODOS LOS OPERADORES →
-              </button>
-            </div>
 
           </section>
 

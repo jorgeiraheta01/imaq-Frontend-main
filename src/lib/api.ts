@@ -11,9 +11,11 @@ import type {
   LoginRequestApi,
   MaquinaApi,
   MaquinaCreateApi,
+  MaquinaFiltrosApi,
   MaquinaUpdateApi,
   OperadorApi,
   OperadorCreateApi,
+  OperadorFiltrosApi,
   OperadorUpdateApi,
   RecuperarPasswordRequestApi,
   ResetPasswordRequestApi,
@@ -175,10 +177,23 @@ export function cerrarTodasLasSesiones(): Promise<void> {
   return request<void>('/sesiones/todas', { method: 'DELETE', auth: true });
 }
 
+/* ───────────────────────── HELPERS ───────────────────────── */
+
+function buildQueryString(params: object): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value));
+    }
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : '';
+}
+
 /* ───────────────────────── MÁQUINAS ───────────────────────── */
 
-export function listarMaquinas(): Promise<MaquinaApi[]> {
-  return request<MaquinaApi[]>('/maquinas/');
+export function listarMaquinas(filtros: MaquinaFiltrosApi = {}): Promise<MaquinaApi[]> {
+  return request<MaquinaApi[]>(`/maquinas/${buildQueryString(filtros)}`);
 }
 
 export function obtenerMaquina(id: number): Promise<MaquinaApi> {
@@ -195,8 +210,8 @@ export function actualizarMaquina(id: number, datos: MaquinaUpdateApi): Promise<
 
 /* ───────────────────────── OPERADORES ───────────────────────── */
 
-export function listarOperadores(): Promise<OperadorApi[]> {
-  return request<OperadorApi[]>('/operadores/');
+export function listarOperadores(filtros: OperadorFiltrosApi = {}): Promise<OperadorApi[]> {
+  return request<OperadorApi[]>(`/operadores/${buildQueryString(filtros)}`);
 }
 
 export function crearOperador(datos: OperadorCreateApi): Promise<OperadorApi> {

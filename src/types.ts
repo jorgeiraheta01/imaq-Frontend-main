@@ -55,6 +55,7 @@ export interface Operator {
   verified: boolean;
   img: string;
   whatsapp?: string;
+  tarifaDia?: number | null;
 }
 
 export interface User {
@@ -201,6 +202,19 @@ export interface MaquinaUpdateApi extends Partial<MaquinaCreateApi> {
   estado?: EstadoMaquina;
 }
 
+export type OrdenMaquina = 'precio_asc' | 'precio_desc' | 'reciente';
+
+export interface MaquinaFiltrosApi {
+  buscar?: string;
+  estado?: EstadoMaquina;
+  tipo?: string;
+  departamento_id?: number;
+  precio_max?: number;
+  tipo_precio?: TipoPrecio;
+  incluye_operador?: boolean;
+  orden?: OrdenMaquina;
+}
+
 export interface OperadorApi {
   id: number;
   usuario_id: number;
@@ -222,6 +236,17 @@ export interface OperadorUpdateApi {
   experiencia_anios?: number;
   tarifa_dia?: number | null;
   certificaciones?: string | null;
+}
+
+export type OrdenOperador = 'tarifa_asc' | 'tarifa_desc' | 'mejor_calificacion';
+
+export interface OperadorFiltrosApi {
+  buscar?: string;
+  departamento_id?: number;
+  tarifa_max?: number;
+  verificado?: boolean;
+  maquina?: string;
+  orden?: OrdenOperador;
 }
 
 export interface DepartamentoApi {
