@@ -6,7 +6,6 @@ import {
 import {
   Wrench,
   Users,
-  Monitor,
   Check,
   Plus,
   Heart,
@@ -980,43 +979,29 @@ export default function App() {
       {currentPage === 'home' && (
         <main className="flex-1 bg-[#F5F4F0]">
           
-          {/* HERO SECTION */}
-          <section className="relative h-[calc(100vh-56px)] min-h-[520px] overflow-hidden">
-            {/* Background Image */}
-            <div className="absolute inset-0 z-0">
-              <img 
-                src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=1800&q=85" 
-                alt="Obra de construcción con excavadora al atardecer" 
-                className="w-full h-full object-cover object-[center_40%]"
-              />
-              <div 
-                className="absolute inset-0 block" 
-                style={{
-                  background: 'linear-gradient(100deg, rgba(10,10,20,.85) 0%, rgba(10,10,20,.5) 55%, rgba(10,10,20,.15) 100%)'
-                }}
-              />
-            </div>
+          {/* HERO SECTION — 2-column 50/50, max 50vh */}
+          <section className="relative h-[50vh] min-h-[420px] max-h-[600px] overflow-hidden grid grid-cols-1 md:grid-cols-2">
 
-            {/* Hero content */}
-            <div className="relative z-10 max-w-[1140px] mx-auto h-full px-4 flex flex-col justify-end pb-16">
-              <div className="max-w-[700px]">
+            {/* Left column — text on semi-transparent navy */}
+            <div className="relative z-10 flex items-center bg-[#0C2D5E]/90 order-2 md:order-1">
+              <div className="max-w-[560px] w-full mx-auto px-6 md:px-10 py-8">
                 <span className="block text-[11px] font-medium tracking-[0.1em] uppercase text-white/55 mb-2">
                   Plataforma líder · El Salvador · Centroamérica
                 </span>
-                
-                <h1 className="text-white text-4xl sm:text-5xl md:text-6xl font-normal leading-tight tracking-[-0.01em]">
+
+                <h1 className="text-white text-3xl sm:text-4xl md:text-5xl font-normal leading-tight tracking-[-0.01em]">
                   Alquila maquinaria,<br />
-                  <span className="block italic text-[#E8A020] font-serif-italic text-5xl sm:text-6xl md:text-7xl mt-1">
+                  <span className="block italic text-[#E8A020] font-serif-italic text-4xl sm:text-5xl md:text-6xl mt-1">
                     opera con confianza.
                   </span>
                 </h1>
 
-                <p className="text-white/60 text-[15px] max-w-[400px] leading-[1.65] mt-4 mb-9">
+                <p className="text-white/60 text-[14px] max-w-[400px] leading-[1.65] mt-3 mb-6">
                   La plataforma líder en El Salvador para el alquiler de maquinaria pesada y contratación de operadores certificados.
                 </p>
 
                 <div className="flex flex-wrap gap-3">
-                  <button 
+                  <button
                     onClick={() => {
                       const element = document.getElementById('catalog-anchor');
                       element?.scrollIntoView({ behavior: 'smooth' });
@@ -1025,7 +1010,7 @@ export default function App() {
                   >
                     Explorar catálogo <ArrowRight size={15} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => navigateTo('operators')}
                     className="bg-transparent text-white/85 text-[13px] font-bold px-6 py-3.5 border-[1.5px] border-white/35 hover:bg-white/10 rounded-[6px] transition-colors cursor-pointer"
                   >
@@ -1033,6 +1018,15 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Right column — construction machinery image */}
+            <div className="relative order-1 md:order-2 min-h-[220px]">
+              <img
+                src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&q=80"
+                alt="Excavadora en obra de construcción"
+                className="w-full h-full object-cover"
+              />
             </div>
           </section>
 
@@ -1095,23 +1089,26 @@ export default function App() {
               <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#F9F9F7] transition-colors group">
                 <div>
                   <div className="w-10 h-10 bg-[#2B44C7] flex items-center justify-center text-white mb-6">
-                    <Monitor size={20} className="stroke-[1.75px]" />
+                    <PhoneCall size={20} className="stroke-[1.75px]" />
                   </div>
                   <span className="block text-[10px] font-semibold text-[#2B44C7] tracking-wider uppercase mb-1">
-                    CONTROL
+                    CONTACTO
                   </span>
                   <h3 className="text-[20px] font-bold text-[#0F0F0F] mb-3">
-                    Gestión de Flota
+                    Contacto Directo
                   </h3>
                   <p className="text-[#3A3A3A] text-[13px] leading-relaxed mb-6">
-                    Herramientas digitales avanzadas para el seguimiento en tiempo real, gestión de combustible y reportes de telemetría detallados.
+                    Conecta directo con propietarios vía WhatsApp. Sin intermediarios, sin comisiones en Fase 1.
                   </p>
                 </div>
-                <button 
-                  onClick={() => addToast('Soporte de telemática premium e iMaq IoT disponible en el plan Platinum.', 'info')}
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('catalog-anchor');
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                  }}
                   className="text-left text-[#2B44C7] text-[12px] font-semibold hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
                 >
-                  Saber más →
+                  Contactar ahora →
                 </button>
               </div>
 
