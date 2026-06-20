@@ -982,8 +982,8 @@ export default function App() {
           {/* HERO SECTION — 2-column 50/50, max 50vh */}
           <section className="relative h-[50vh] min-h-[420px] max-h-[600px] overflow-hidden grid grid-cols-1 md:grid-cols-2">
 
-            {/* Left column — text on semi-transparent navy */}
-            <div className="relative z-10 flex items-center bg-[#0C2D5E]/90 order-2 md:order-1">
+            {/* Left column — text on the original dark overlay tone */}
+            <div className="relative z-10 flex items-center bg-[#0A0A14] order-2 md:order-1">
               <div className="max-w-[560px] w-full mx-auto px-6 md:px-10 py-8">
                 <span className="block text-[11px] font-medium tracking-[0.1em] uppercase text-white/55 mb-2">
                   Plataforma líder · El Salvador · Centroamérica
@@ -1020,12 +1020,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right column — construction machinery image */}
+            {/* Right column — original background image */}
             <div className="relative order-1 md:order-2 min-h-[220px]">
               <img
-                src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&q=80"
-                alt="Excavadora en obra de construcción"
-                className="w-full h-full object-cover"
+                src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=1800&q=85"
+                alt="Obra de construcción con excavadora al atardecer"
+                className="w-full h-full object-cover object-[center_40%]"
               />
             </div>
           </section>
