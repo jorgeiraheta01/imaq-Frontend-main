@@ -1131,8 +1131,8 @@ export default function App() {
             {/* Right column — original background image */}
             <div className="relative order-1 md:order-2 min-h-[220px]">
               <img
-                src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=1800&q=85"
-                alt="Obra de construcción con excavadora al atardecer"
+                src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1200&q=80"
+                alt="Maquinaria de construcción"
                 className="w-full h-full object-cover object-[center_40%]"
               />
             </div>
