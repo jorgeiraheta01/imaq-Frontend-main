@@ -1867,7 +1867,7 @@ export default function App() {
                 className="flex items-center space-x-1 text-[#0F0F0F] hover:text-[#2B44C7] text-[12px] font-bold tracking-widest uppercase transition-colors"
               >
                 <X size={15} />
-                <span>✕ SALIR</span>
+                <span>SALIR</span>
               </button>
 
             </div>
