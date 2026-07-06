@@ -213,6 +213,8 @@ export interface MaquinaFiltrosApi {
   tipo_precio?: TipoPrecio;
   incluye_operador?: boolean;
   orden?: OrdenMaquina;
+  skip?: number;
+  limit?: number;
 }
 
 export interface OperadorApi {
@@ -247,6 +249,8 @@ export interface OperadorFiltrosApi {
   verificado?: boolean;
   maquina?: string;
   orden?: OrdenOperador;
+  skip?: number;
+  limit?: number;
 }
 
 export interface DepartamentoApi {

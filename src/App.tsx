@@ -84,6 +84,7 @@ import { formatPrice } from './lib/format';
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
 
 const DUI_REGEX = /^[0-9]{8}-[0-9]{1}$/;
+const CATALOG_PAGE_SIZE = 20;
 
 /** Auto-inserts the dash as the user types: 8 digits, then "-", then 1 digit. */
 function formatDui(value: string): string {
@@ -221,7 +222,9 @@ export default function App() {
 
   const [catalogMachines, setCatalogMachines] = useState<Machine[]>([]);
   const [catalogMachinesLoading, setCatalogMachinesLoading] = useState(true);
+  const [catalogMachinesLoadingMore, setCatalogMachinesLoadingMore] = useState(false);
   const [catalogMachinesError, setCatalogMachinesError] = useState<string | null>(null);
+  const [catalogMachinesHasMore, setCatalogMachinesHasMore] = useState(false);
 
   /* ───────────────────────── OPERATOR SEARCH & FILTERS (server-side) ───────────────────────── */
   const [searchOperators, setSearchOperators] = useState('');
@@ -234,7 +237,9 @@ export default function App() {
 
   const [catalogOperators, setCatalogOperators] = useState<Operator[]>([]);
   const [catalogOperatorsLoading, setCatalogOperatorsLoading] = useState(true);
+  const [catalogOperatorsLoadingMore, setCatalogOperatorsLoadingMore] = useState(false);
   const [catalogOperatorsError, setCatalogOperatorsError] = useState<string | null>(null);
+  const [catalogOperatorsHasMore, setCatalogOperatorsHasMore] = useState(false);
 
   // Form State for Publish Equipment Page
   const [publishStep, setPublishStep] = useState<1 | 2 | 3>(1);
@@ -312,8 +317,12 @@ export default function App() {
     return () => clearTimeout(id);
   }, [searchOperators]);
 
-  const loadCatalogMachines = () => {
-    setCatalogMachinesLoading(true);
+  const loadCatalogMachines = (append = false) => {
+    if (append) {
+      setCatalogMachinesLoadingMore(true);
+    } else {
+      setCatalogMachinesLoading(true);
+    }
     setCatalogMachinesError(null);
     listarMaquinas({
       buscar: debouncedSearchMachines || undefined,
@@ -324,13 +333,22 @@ export default function App() {
       tipo_precio: filterTipoPrecio !== 'todos' ? filterTipoPrecio : undefined,
       incluye_operador: filterIncluyeOperador !== 'todos' ? filterIncluyeOperador === 'si' : undefined,
       orden: filterOrdenMaquinas !== 'ninguno' ? filterOrdenMaquinas : undefined,
+      skip: append ? catalogMachines.length : 0,
+      limit: CATALOG_PAGE_SIZE,
     })
-      .then((maquinas) => setCatalogMachines(maquinas.map(mapMaquinaToMachine)))
+      .then((maquinas) => {
+        const mapped = maquinas.map(mapMaquinaToMachine);
+        setCatalogMachines((prev) => (append ? [...prev, ...mapped] : mapped));
+        setCatalogMachinesHasMore(mapped.length === CATALOG_PAGE_SIZE);
+      })
       .catch((error) => {
         const message = error instanceof ApiError ? error.message : 'No se pudo conectar con el servidor de iMaq';
         setCatalogMachinesError(message);
       })
-      .finally(() => setCatalogMachinesLoading(false));
+      .finally(() => {
+        setCatalogMachinesLoading(false);
+        setCatalogMachinesLoadingMore(false);
+      });
   };
 
   // Server-side machine search/filtering — refetches whenever any filter changes.
@@ -345,8 +363,12 @@ export default function App() {
     filterOrdenMaquinas,
   ]);
 
-  const loadCatalogOperators = () => {
-    setCatalogOperatorsLoading(true);
+  const loadCatalogOperators = (append = false) => {
+    if (append) {
+      setCatalogOperatorsLoadingMore(true);
+    } else {
+      setCatalogOperatorsLoading(true);
+    }
     setCatalogOperatorsError(null);
     listarOperadores({
       buscar: debouncedSearchOperators || undefined,
@@ -355,13 +377,22 @@ export default function App() {
       tarifa_max: operatorFilterTarifaMax ? Number(operatorFilterTarifaMax) : undefined,
       verificado: operatorFilterVerificado ? true : undefined,
       orden: operatorFilterOrden !== 'ninguno' ? operatorFilterOrden : undefined,
+      skip: append ? catalogOperators.length : 0,
+      limit: CATALOG_PAGE_SIZE,
     })
-      .then((operadores) => setCatalogOperators(operadores.map(mapOperadorToOperator)))
+      .then((operadores) => {
+        const mapped = operadores.map(mapOperadorToOperator);
+        setCatalogOperators((prev) => (append ? [...prev, ...mapped] : mapped));
+        setCatalogOperatorsHasMore(mapped.length === CATALOG_PAGE_SIZE);
+      })
       .catch((error) => {
         const message = error instanceof ApiError ? error.message : 'No se pudo conectar con el servidor de iMaq';
         setCatalogOperatorsError(message);
       })
-      .finally(() => setCatalogOperatorsLoading(false));
+      .finally(() => {
+        setCatalogOperatorsLoading(false);
+        setCatalogOperatorsLoadingMore(false);
+      });
   };
 
   // Server-side operator search/filtering — refetches whenever any filter changes.
@@ -1805,6 +1836,18 @@ export default function App() {
             </div>
             )}
 
+            {!catalogMachinesLoading && !catalogMachinesError && catalogMachinesHasMore && (
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={() => loadCatalogMachines(true)}
+                  disabled={catalogMachinesLoadingMore}
+                  className="bg-white border border-[#E2E2DE] hover:border-[#0F0F0F] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-6 py-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {catalogMachinesLoadingMore ? 'Cargando...' : 'Cargar más máquinas'}
+                </button>
+              </div>
+            )}
+
           </section>
 
         </main>
@@ -2056,6 +2099,18 @@ export default function App() {
                 </div>
               ))}
             </div>
+            )}
+
+            {!catalogOperatorsLoading && !catalogOperatorsError && catalogOperatorsHasMore && (
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={() => loadCatalogOperators(true)}
+                  disabled={catalogOperatorsLoadingMore}
+                  className="bg-white border border-[#E2E2DE] hover:border-[#0F0F0F] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-6 py-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {catalogOperatorsLoadingMore ? 'Cargando...' : 'Cargar más operadores'}
+                </button>
+              </div>
             )}
 
           </section>
