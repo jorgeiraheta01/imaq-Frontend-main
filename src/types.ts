@@ -298,6 +298,59 @@ export interface AlquilerApi {
   creado_en: string;
 }
 
+/** Public rental-history entry for a machine: no renter identity or price. */
+export interface AlquilerPublicoApi {
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: EstadoAlquiler;
+}
+
+export type EstadoCotizacion = 'pendiente' | 'contraoferta' | 'aceptada' | 'rechazada' | 'cancelada' | 'expirada';
+
+export interface CotizacionApi {
+  id: number;
+  maquina_id: number;
+  arrendatario_id: number;
+  propietario_id: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  precio_propuesto: number;
+  notas: string | null;
+  estado: EstadoCotizacion;
+  precio_contraoferta: number | null;
+  fecha_inicio_contraoferta: string | null;
+  fecha_fin_contraoferta: string | null;
+  notas_contraoferta: string | null;
+  motivo_rechazo: string | null;
+  alquiler_id: number | null;
+  visto: boolean;
+  fecha_creacion: string;
+  fecha_respuesta: string | null;
+  fecha_expiracion: string | null;
+  arrendatario_nombre: string;
+  arrendatario_telefono: string | null;
+  conflicto_fechas: boolean;
+}
+
+export interface CotizacionCreateApi {
+  maquina_id: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  precio_propuesto: number;
+  notas?: string | null;
+}
+
+export interface CotizacionRechazarApi {
+  motivo_rechazo?: string | null;
+}
+
+export interface CotizacionContraofertaApi {
+  precio_contraoferta: number;
+  fecha_inicio_contraoferta: string;
+  fecha_fin_contraoferta: string;
+  notas_contraoferta?: string | null;
+}
+
 export type TipoDocumento = 'dui' | 'licencia' | 'rtn' | 'certificacion';
 export type EstadoDocumento = 'pendiente' | 'aprobado' | 'rechazado';
 

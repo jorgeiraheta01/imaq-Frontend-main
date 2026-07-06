@@ -1,8 +1,13 @@
 import type {
   AlquilerApi,
+  AlquilerPublicoApi,
   CalificacionApi,
   CalificacionCreateApi,
   CambiarPasswordApi,
+  CotizacionApi,
+  CotizacionContraofertaApi,
+  CotizacionCreateApi,
+  CotizacionRechazarApi,
   DepartamentoApi,
   DocumentoVerificacionApi,
   DocumentoVerificacionCreateApi,
@@ -39,7 +44,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   auth?: boolean;
   /** Internal: prevents infinite refresh loops. Don't set this yourself. */
@@ -222,6 +227,10 @@ export function actualizarOperador(id: number, datos: OperadorUpdateApi): Promis
   return request<OperadorApi>(`/operadores/${id}`, { method: 'PUT', body: datos, auth: true });
 }
 
+export function contarOperadores(): Promise<{ total: number }> {
+  return request<{ total: number }>('/operadores/count');
+}
+
 /* ───────────────────────── DEPARTAMENTOS ───────────────────────── */
 
 export function listarDepartamentos(): Promise<DepartamentoApi[]> {
@@ -256,6 +265,44 @@ export function listarCalificacionesPorMaquina(maquinaId: number): Promise<Calif
 
 export function listarMisAlquileres(): Promise<AlquilerApi[]> {
   return request<AlquilerApi[]>('/alquileres/', { auth: true });
+}
+
+export function listarAlquileresPublicosPorMaquina(maquinaId: number): Promise<AlquilerPublicoApi[]> {
+  return request<AlquilerPublicoApi[]>(`/alquileres/publico/por-maquina/${maquinaId}`);
+}
+
+/* ───────────────────────── COTIZACIONES ───────────────────────── */
+
+export function crearCotizacion(datos: CotizacionCreateApi): Promise<CotizacionApi> {
+  return request<CotizacionApi>('/cotizaciones/', { method: 'POST', body: datos, auth: true });
+}
+
+export function listarCotizacionesEnviadas(): Promise<CotizacionApi[]> {
+  return request<CotizacionApi[]>('/cotizaciones/enviadas', { auth: true });
+}
+
+export function listarCotizacionesRecibidas(): Promise<CotizacionApi[]> {
+  return request<CotizacionApi[]>('/cotizaciones/recibidas', { auth: true });
+}
+
+export function aceptarCotizacion(id: number): Promise<CotizacionApi> {
+  return request<CotizacionApi>(`/cotizaciones/${id}/aceptar`, { method: 'PATCH', auth: true });
+}
+
+export function rechazarCotizacion(id: number, datos: CotizacionRechazarApi = {}): Promise<CotizacionApi> {
+  return request<CotizacionApi>(`/cotizaciones/${id}/rechazar`, { method: 'PATCH', body: datos, auth: true });
+}
+
+export function contraofertarCotizacion(id: number, datos: CotizacionContraofertaApi): Promise<CotizacionApi> {
+  return request<CotizacionApi>(`/cotizaciones/${id}/contraoferta`, { method: 'PATCH', body: datos, auth: true });
+}
+
+export function cancelarCotizacion(id: number): Promise<CotizacionApi> {
+  return request<CotizacionApi>(`/cotizaciones/${id}/cancelar`, { method: 'PATCH', auth: true });
+}
+
+export function contarCotizacionesNoVistas(): Promise<{ total: number }> {
+  return request<{ total: number }>('/cotizaciones/no-vistas/count', { auth: true });
 }
 
 /* ───────────────────────── DOCUMENTOS DE VERIFICACIÓN ───────────────────────── */

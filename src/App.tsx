@@ -35,23 +35,33 @@ import {
   ImagePlus,
   Trash2,
 } from 'lucide-react';
-import { Machine, Operator, User as UserProfile, ToastMessage, DepartamentoApi, CalificacionApi } from './types';
+import { Machine, Operator, User as UserProfile, ToastMessage, DepartamentoApi, CalificacionApi, AlquilerPublicoApi, CotizacionApi } from './types';
 import { fetchMachines, fetchOperators, mapMaquinaToMachine, mapOperadorToOperator } from './data';
 import {
   ApiError,
+  aceptarCotizacion,
   actualizarMaquina,
   agregarFavorito,
   AUTH_EXPIRED_EVENT,
+  cancelarCotizacion,
+  contarCotizacionesNoVistas,
+  contarOperadores,
+  contraofertarCotizacion,
+  crearCotizacion,
   crearMaquina,
   crearOperador,
   eliminarFavorito,
+  listarAlquileresPublicosPorMaquina,
   listarCalificacionesPorMaquina,
+  listarCotizacionesEnviadas,
+  listarCotizacionesRecibidas,
   listarDepartamentos,
   listarFavoritos,
   listarMaquinas,
   listarOperadores,
   loginUsuario,
   obtenerPerfilActual,
+  rechazarCotizacion,
   recuperarPassword,
   registrarUsuario,
 } from './lib/api';
@@ -67,6 +77,9 @@ import {
 import { getImageUrl, subirImagen } from './lib/cloudinary';
 import { formatLocalPhone, PHONE_PREFIX, toFullPhone } from './lib/phone';
 import ProfilePage from './ProfilePage';
+import Modal from './components/Modal';
+import Collapsible from './components/Collapsible';
+import { formatPrice } from './lib/format';
 
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
 
@@ -77,6 +90,13 @@ function formatDui(value: string): string {
   const digits = value.replace(/[^0-9]/g, '').slice(0, 9);
   if (digits.length <= 8) return digits;
   return `${digits.slice(0, 8)}-${digits.slice(8)}`;
+}
+
+/** Formats an ISO date string (YYYY-MM-DD) as e.g. "15 nov 2024". */
+function formatFechaCorta(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('es-SV', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default function App() {
@@ -108,6 +128,35 @@ export default function App() {
   // Ratings for the currently open machine modal
   const [machineRatings, setMachineRatings] = useState<CalificacionApi[]>([]);
   const [ratingsLoading, setRatingsLoading] = useState(false);
+
+  // Public rental history for the currently open machine modal
+  const [machineRentalHistory, setMachineRentalHistory] = useState<AlquilerPublicoApi[]>([]);
+  const [rentalHistoryLoading, setRentalHistoryLoading] = useState(false);
+
+  // Real registered-operators count, shown in the Operators page stats footer
+  const [operadoresCount, setOperadoresCount] = useState<number | null>(null);
+
+  // "Cotizar" form state for the currently open machine modal
+  const [isCotizarFormOpen, setIsCotizarFormOpen] = useState(false);
+  const [cotizarFechaInicio, setCotizarFechaInicio] = useState('');
+  const [cotizarFechaFin, setCotizarFechaFin] = useState('');
+  const [cotizarPrecio, setCotizarPrecio] = useState('');
+  const [cotizarNotas, setCotizarNotas] = useState('');
+  const [cotizarSubmitting, setCotizarSubmitting] = useState(false);
+  const [cotizacionEnviada, setCotizacionEnviada] = useState<CotizacionApi | null>(null);
+
+  // Cotizaciones sin ver, para el badge del navbar
+  const [cotizacionesNoVistas, setCotizacionesNoVistas] = useState(0);
+
+  // "Cotizaciones recibidas" en el panel del propietario
+  const [cotizacionesRecibidas, setCotizacionesRecibidas] = useState<CotizacionApi[]>([]);
+  const [cotizacionesRecibidasLoading, setCotizacionesRecibidasLoading] = useState(false);
+  const [cotizacionActionId, setCotizacionActionId] = useState<number | null>(null);
+  const [contraofertaFormId, setContraofertaFormId] = useState<number | null>(null);
+  const [contraofertaPrecio, setContraofertaPrecio] = useState('');
+  const [contraofertaFechaInicio, setContraofertaFechaInicio] = useState('');
+  const [contraofertaFechaFin, setContraofertaFechaFin] = useState('');
+  const [contraofertaNotas, setContraofertaNotas] = useState('');
 
   // Selected roles on Register form
   const [registerRole, setRegisterRole] = useState<'owner' | 'operator' | 'renter'>('renter');
@@ -168,6 +217,7 @@ export default function App() {
   const [filterEstado, setFilterEstado] = useState<'todos' | 'disponible' | 'alquilada' | 'mantenimiento'>('todos');
   const [filterIncluyeOperador, setFilterIncluyeOperador] = useState<'todos' | 'si' | 'no'>('todos');
   const [filterOrdenMaquinas, setFilterOrdenMaquinas] = useState<'ninguno' | 'precio_asc' | 'precio_desc' | 'reciente'>('ninguno');
+  const [isMachineFiltersOpen, setIsMachineFiltersOpen] = useState(false);
 
   const [catalogMachines, setCatalogMachines] = useState<Machine[]>([]);
   const [catalogMachinesLoading, setCatalogMachinesLoading] = useState(true);
@@ -248,6 +298,7 @@ export default function App() {
     loadMachines();
     loadOperators();
     listarDepartamentos().then(setDepartments).catch(() => setDepartments([]));
+    contarOperadores().then(({ total }) => setOperadoresCount(total)).catch(() => setOperadoresCount(null));
   }, []);
 
   // Debounce the free-text search inputs (300ms) before they trigger a fetch.
@@ -451,6 +502,29 @@ export default function App() {
       .finally(() => setRatingsLoading(false));
   }, [selectedMachine]);
 
+  // Fetch public rental history for the machine currently open in the detail modal.
+  useEffect(() => {
+    if (!selectedMachine) {
+      setMachineRentalHistory([]);
+      return;
+    }
+    setRentalHistoryLoading(true);
+    listarAlquileresPublicosPorMaquina(Number(selectedMachine.id))
+      .then(setMachineRentalHistory)
+      .catch(() => setMachineRentalHistory([]))
+      .finally(() => setRentalHistoryLoading(false));
+  }, [selectedMachine]);
+
+  // Reset the "Cotizar" form whenever the open machine changes (or the modal closes).
+  useEffect(() => {
+    setIsCotizarFormOpen(false);
+    setCotizarFechaInicio('');
+    setCotizarFechaFin('');
+    setCotizarPrecio('');
+    setCotizarNotas('');
+    setCotizacionEnviada(null);
+  }, [selectedMachine]);
+
   // Toast logic helper
   const addToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     const id = Date.now().toString();
@@ -522,9 +596,12 @@ export default function App() {
   };
 
   // Perform quick WhatsApp link generation
-  const handleWhatsAppContact = (e: React.MouseEvent, target: { name: string; cat?: string }) => {
+  const handleWhatsAppContact = (
+    e: React.MouseEvent,
+    target: { name: string; cat?: string; telefonoContacto?: string | null }
+  ) => {
     e.stopPropagation();
-    const phone = '50371234567'; // Default real format number
+    const phone = target.telefonoContacto || '50371234567'; // Fallback only if the machine has no contact phone
     const text = encodeURIComponent(`Hola, estoy interesado en alquilar el equipo "${target.name}" ${target.cat ? `(${target.cat})` : ''} que vi en iMaq. ¿Está disponible?`);
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
@@ -535,6 +612,148 @@ export default function App() {
     const phone = op.whatsapp || '50371234567';
     const text = encodeURIComponent(`Hola ${op.name}, vi tu perfil verificado en iMaq El Salvador como ${op.specialty} y me gustaría cotizar tus servicios para un proyecto de construcción.`);
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  };
+
+  const refreshCotizacionesNoVistas = () => {
+    if (!loggedInUser) {
+      setCotizacionesNoVistas(0);
+      return;
+    }
+    contarCotizacionesNoVistas()
+      .then(({ total }) => setCotizacionesNoVistas(total))
+      .catch(() => {});
+  };
+
+  const cargarCotizacionesRecibidas = () => {
+    setCotizacionesRecibidasLoading(true);
+    listarCotizacionesRecibidas()
+      .then(setCotizacionesRecibidas)
+      .catch(() => setCotizacionesRecibidas([]))
+      .finally(() => setCotizacionesRecibidasLoading(false));
+  };
+
+  const handleAceptarCotizacionRecibida = async (id: number) => {
+    setCotizacionActionId(id);
+    try {
+      const actualizada = await aceptarCotizacion(id);
+      if (actualizada.conflicto_fechas) {
+        addToast('¡Alquiler confirmado! Pero hay otro alquiler con fechas cruzadas para esta máquina — revísalo.', 'error');
+      } else {
+        addToast('¡Alquiler confirmado!', 'success');
+      }
+      cargarCotizacionesRecibidas();
+      refreshCotizacionesNoVistas();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'No se pudo aceptar la cotización';
+      addToast(message, 'error');
+    } finally {
+      setCotizacionActionId(null);
+    }
+  };
+
+  const handleRechazarCotizacionRecibida = async (id: number) => {
+    const motivo = window.prompt('Motivo del rechazo (opcional):') || undefined;
+    setCotizacionActionId(id);
+    try {
+      await rechazarCotizacion(id, { motivo_rechazo: motivo });
+      addToast('Cotización rechazada', 'info');
+      cargarCotizacionesRecibidas();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'No se pudo rechazar la cotización';
+      addToast(message, 'error');
+    } finally {
+      setCotizacionActionId(null);
+    }
+  };
+
+  const handleAbrirContraoferta = (id: number) => {
+    setContraofertaFormId((current) => (current === id ? null : id));
+    setContraofertaPrecio('');
+    setContraofertaFechaInicio('');
+    setContraofertaFechaFin('');
+    setContraofertaNotas('');
+  };
+
+  const handleSubmitContraoferta = async (e: React.FormEvent, id: number) => {
+    e.preventDefault();
+    if (!contraofertaPrecio || !contraofertaFechaInicio || !contraofertaFechaFin) {
+      addToast('Completa precio y fechas de la contraoferta', 'error');
+      return;
+    }
+    setCotizacionActionId(id);
+    try {
+      await contraofertarCotizacion(id, {
+        precio_contraoferta: Number(contraofertaPrecio),
+        fecha_inicio_contraoferta: contraofertaFechaInicio,
+        fecha_fin_contraoferta: contraofertaFechaFin,
+        notas_contraoferta: contraofertaNotas || null,
+      });
+      addToast('Contraoferta enviada', 'success');
+      setContraofertaFormId(null);
+      cargarCotizacionesRecibidas();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'No se pudo enviar la contraoferta';
+      addToast(message, 'error');
+    } finally {
+      setCotizacionActionId(null);
+    }
+  };
+
+  // Carga cotizaciones recibidas al entrar al panel de propietario.
+  useEffect(() => {
+    if (currentPage === 'dashboard' && loggedInUser?.role === 'owner') {
+      cargarCotizacionesRecibidas();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, loggedInUser]);
+
+  // Refresca el badge de "sin ver" cada vez que cambia la sesión.
+  useEffect(() => {
+    refreshCotizacionesNoVistas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedInUser]);
+
+  const handleAbrirFormularioCotizar = () => {
+    if (!loggedInUser) {
+      addToast('Inicia sesión para enviar una cotización', 'info');
+      setAuthTab('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setIsCotizarFormOpen((o) => !o);
+  };
+
+  const handleSubmitCotizacion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMachine) return;
+    if (!cotizarFechaInicio || !cotizarFechaFin || !cotizarPrecio) {
+      addToast('Completa las fechas y el precio propuesto', 'error');
+      return;
+    }
+    setCotizarSubmitting(true);
+    try {
+      const nueva = await crearCotizacion({
+        maquina_id: Number(selectedMachine.id),
+        fecha_inicio: cotizarFechaInicio,
+        fecha_fin: cotizarFechaFin,
+        precio_propuesto: Number(cotizarPrecio),
+        notas: cotizarNotas || null,
+      });
+      setCotizacionEnviada(nueva);
+      setIsCotizarFormOpen(false);
+      addToast('Cotización enviada', 'success');
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'No se pudo enviar la cotización';
+      addToast(message, 'error');
+    } finally {
+      setCotizarSubmitting(false);
+    }
+  };
+
+  /** Manual, one-click WhatsApp notification: the sender decides whether to actually send it. */
+  const handleAvisarWhatsApp = (telefono: string | null | undefined, mensaje: string) => {
+    const phone = telefono || '50371234567';
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(mensaje)}`, '_blank');
   };
 
   // Form submission / custom steps transition logic
@@ -821,6 +1040,16 @@ export default function App() {
     filterEstado !== 'todos' ||
     filterIncluyeOperador !== 'todos' ||
     filterOrdenMaquinas !== 'ninguno';
+  // Count of individually-active filters (excludes free-text search), used for the "Filtros (N)" badge.
+  const activeMachineFilterCount = [
+    filterTipo !== 'Todos',
+    filterDepartamentoId !== 'todos',
+    !!filterPrecioMax,
+    filterTipoPrecio !== 'todos',
+    filterEstado !== 'todos',
+    filterIncluyeOperador !== 'todos',
+    filterOrdenMaquinas !== 'ninguno',
+  ].filter(Boolean).length;
   const clearMachineFilters = () => {
     setSearchMachines('');
     setFilterTipo('Todos');
@@ -934,17 +1163,22 @@ export default function App() {
                     onClick={() => setIsUserMenuOpen((v) => !v)}
                     className="flex items-center gap-2 text-[13px] font-semibold text-[#0F0F0F] hover:text-[#2B44C7] cursor-pointer"
                   >
-                    {loggedInUser.fotoUrl ? (
-                      <img
-                        src={getImageUrl(loggedInUser.fotoUrl, 'perfil')}
-                        alt={loggedInUser.name}
-                        className="w-6 h-6 rounded-full object-cover border border-[#E2E2DE]"
-                      />
-                    ) : (
-                      <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
-                        {loggedInUser.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
+                    <span className="relative">
+                      {loggedInUser.fotoUrl ? (
+                        <img
+                          src={getImageUrl(loggedInUser.fotoUrl, 'perfil')}
+                          alt={loggedInUser.name}
+                          className="w-6 h-6 rounded-full object-cover border border-[#E2E2DE]"
+                        />
+                      ) : (
+                        <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
+                          {loggedInUser.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      {cotizacionesNoVistas > 0 && (
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#991B1B] border border-white" />
+                      )}
+                    </span>
                     {loggedInUser.name}
                     {isUserMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
@@ -989,7 +1223,7 @@ export default function App() {
             <div className="md:hidden flex items-center">
               <button 
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-                className="text-[#0F0F0F] p-1.5 focus:outline-none"
+                className="text-[#0F0F0F] p-1.5 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
               >
                 {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
               </button>
@@ -1046,9 +1280,12 @@ export default function App() {
                       </button>
                       <button
                         onClick={goToDashboardOrLogin}
-                        className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'dashboard' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                        className={`text-left text-[14px] font-medium py-1.5 flex items-center gap-1.5 ${currentPage === 'dashboard' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
                       >
                         Mi Panel
+                        {cotizacionesNoVistas > 0 && (
+                          <span className="w-2 h-2 rounded-full bg-[#991B1B]" />
+                        )}
                       </button>
                       <button
                         onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
@@ -1254,18 +1491,35 @@ export default function App() {
                 placeholder="Buscar por nombre, descripción, marca, ubicación..."
                 value={searchMachines}
                 onChange={(e) => setSearchMachines(e.target.value)}
-                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none"
+                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
               />
             </div>
 
-            {/* Always-visible filter bar */}
+            {/* Collapsible filter panel */}
+            <button
+              type="button"
+              onClick={() => setIsMachineFiltersOpen((o) => !o)}
+              className="flex items-center gap-2 mb-3 text-[12px] font-bold uppercase tracking-wider text-[#0F0F0F] border border-[#E2E2DE] bg-white px-4 py-2.5 hover:bg-[#F9F9F7] transition-colors cursor-pointer"
+            >
+              <span>Filtros{activeMachineFilterCount > 0 ? ` (${activeMachineFilterCount})` : ''}</span>
+              <ChevronDown size={14} className={`text-[#717171] transition-transform ${isMachineFiltersOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isMachineFiltersOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
             <div className="bg-white border border-[#E2E2DE] p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tipo de máquina</label>
                 <select
                   value={filterTipo}
                   onChange={(e) => setFilterTipo(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   {machineTypes.map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -1278,7 +1532,7 @@ export default function App() {
                 <select
                   value={filterDepartamentoId}
                   onChange={(e) => setFilterDepartamentoId(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   {departments.map((dep) => (
@@ -1295,7 +1549,7 @@ export default function App() {
                   placeholder="Sin límite"
                   value={filterPrecioMax}
                   onChange={(e) => setFilterPrecioMax(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                 />
               </div>
 
@@ -1304,7 +1558,7 @@ export default function App() {
                 <select
                   value={filterTipoPrecio}
                   onChange={(e) => setFilterTipoPrecio(e.target.value as 'todos' | 'hora' | 'dia')}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="todos">Hora o día</option>
                   <option value="dia">Por día</option>
@@ -1317,7 +1571,7 @@ export default function App() {
                 <select
                   value={filterEstado}
                   onChange={(e) => setFilterEstado(e.target.value as typeof filterEstado)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   <option value="disponible">Disponible</option>
@@ -1331,7 +1585,7 @@ export default function App() {
                 <select
                   value={filterIncluyeOperador}
                   onChange={(e) => setFilterIncluyeOperador(e.target.value as typeof filterIncluyeOperador)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   <option value="si">Sí</option>
@@ -1344,7 +1598,7 @@ export default function App() {
                 <select
                   value={filterOrdenMaquinas}
                   onChange={(e) => setFilterOrdenMaquinas(e.target.value as typeof filterOrdenMaquinas)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="ninguno">Relevancia</option>
                   <option value="precio_asc">Precio: menor a mayor</option>
@@ -1363,6 +1617,9 @@ export default function App() {
                 </button>
               </div>
             </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Results counter */}
             {!catalogMachinesLoading && !catalogMachinesError && (
@@ -1525,7 +1782,7 @@ export default function App() {
                         <div>
                           <span className="block text-[9px] uppercase text-[#717171] tracking-wider leading-none">Tarifa</span>
                           <div className="flex items-baseline mt-0.5">
-                            <span className="font-mono-imaq text-[17px] font-bold text-[#C88010] leading-none">${machine.price}</span>
+                            <span className="font-mono-imaq text-[17px] font-bold text-[#C88010] leading-none">${formatPrice(machine.price)}</span>
                             <span className="text-[10px] text-[#717171] ml-0.5 font-normal">/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
                           </div>
                         </div>
@@ -1579,7 +1836,7 @@ export default function App() {
                 placeholder="Buscar por nombre o certificaciones..."
                 value={searchOperators}
                 onChange={(e) => setSearchOperators(e.target.value)}
-                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none"
+                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
               />
             </div>
 
@@ -1590,7 +1847,7 @@ export default function App() {
                 <select
                   value={operatorFilterMaquina}
                   onChange={(e) => setOperatorFilterMaquina(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="Todos">Todos</option>
                   {OPERATOR_MACHINE_TYPES.map((t) => (
@@ -1604,7 +1861,7 @@ export default function App() {
                 <select
                   value={operatorFilterDepartamentoId}
                   onChange={(e) => setOperatorFilterDepartamentoId(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   {departments.map((dep) => (
@@ -1621,7 +1878,7 @@ export default function App() {
                   placeholder="Sin límite"
                   value={operatorFilterTarifaMax}
                   onChange={(e) => setOperatorFilterTarifaMax(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                 />
               </div>
 
@@ -1630,7 +1887,7 @@ export default function App() {
                 <select
                   value={operatorFilterOrden}
                   onChange={(e) => setOperatorFilterOrden(e.target.value as typeof operatorFilterOrden)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                 >
                   <option value="ninguno">Relevancia</option>
                   <option value="tarifa_asc">Tarifa: menor a mayor</option>
@@ -1809,7 +2066,7 @@ export default function App() {
               
               <div className="py-12 px-6 text-center">
                 <span className="block text-4xl sm:text-5xl font-extrabold text-[#2B44C7] font-sans tracking-tight mb-2">
-                  350+
+                  {operadoresCount !== null ? `${Math.max(Math.floor(operadoresCount / 50) * 50, 0)}+` : '—'}
                 </span>
                 <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em]">
                   OPERADORES REGISTRADOS
@@ -1958,7 +2215,7 @@ export default function App() {
                           <select 
                             value={formCategory}
                             onChange={(e) => setFormCategory(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none cursor-pointer"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none cursor-pointer"
                           >
                             <option>Excavadora</option>
                             <option>Retroexcavadora</option>
@@ -1980,7 +2237,7 @@ export default function App() {
                             placeholder="Ej: Caterpillar, JCB, Komatsu"
                             value={formBrand}
                             onChange={(e) => setFormBrand(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none placeholder-[#B0B0B0]"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none placeholder-[#B0B0B0]"
                           />
                         </div>
                       </div>
@@ -1996,7 +2253,7 @@ export default function App() {
                             placeholder="Ej: 320D L"
                             value={formModel}
                             onChange={(e) => setFormModel(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
 
@@ -2010,7 +2267,7 @@ export default function App() {
                             placeholder="Ej: 2022"
                             value={formYear}
                             onChange={(e) => setFormYear(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
                       </div>
@@ -2025,7 +2282,7 @@ export default function App() {
                             placeholder="Ej: 2.6 m3, 1.5 ton"
                             value={formCapacidad}
                             onChange={(e) => setFormCapacidad(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
                         <div>
@@ -2037,7 +2294,7 @@ export default function App() {
                             placeholder="Ej: 447 horas o N/A"
                             value={formHorometro}
                             onChange={(e) => setFormHorometro(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
                       </div>
@@ -2052,7 +2309,7 @@ export default function App() {
                           placeholder="Describa el mantenimiento reciente, horas de uso, accesorios incluidos y características operativas..."
                           value={formDesc}
                           onChange={(e) => setFormDesc(e.target.value)}
-                          className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none resize-none"
+                          className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none resize-none"
                         />
                       </div>
 
@@ -2155,7 +2412,7 @@ export default function App() {
                             required
                             value={formDepartamentoId ?? ''}
                             onChange={(e) => setFormDepartamentoId(e.target.value ? Number(e.target.value) : null)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none cursor-pointer disabled:opacity-60"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none cursor-pointer disabled:opacity-60"
                             disabled={departments.length === 0}
                           >
                             <option value="" disabled>
@@ -2176,7 +2433,7 @@ export default function App() {
                             placeholder="Ej: Antiguo Cuscatlán, San Miguelito"
                             value={formMunicipality}
                             onChange={(e) => setFormMunicipality(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
                       </div>
@@ -2200,13 +2457,13 @@ export default function App() {
                                   const v = e.target.value;
                                   if (v === '' || Number(v) >= 0) setFormPrice(v);
                                 }}
-                                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 pl-8 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none font-mono-imaq"
+                                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 pl-8 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none font-mono-imaq"
                               />
                             </div>
                             <select
                               value={formTipoPrecio}
                               onChange={(e) => setFormTipoPrecio(e.target.value as 'hora' | 'dia')}
-                              className="bg-[#F9F9F7] border border-l-0 border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium px-3 focus:outline-none cursor-pointer"
+                              className="bg-[#F9F9F7] border border-l-0 border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium px-3 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
                             >
                               <option value="dia">por día</option>
                               <option value="hora">por hora</option>
@@ -2252,7 +2509,7 @@ export default function App() {
                             placeholder="Persona o empresa de contacto"
                             value={formContactName}
                             onChange={(e) => setFormContactName(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
                         <div>
@@ -2264,7 +2521,7 @@ export default function App() {
                             placeholder="Puede ser distinto al de tu cuenta"
                             value={formContactPhone}
                             onChange={(e) => setFormContactPhone(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-0 rounded-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
                           />
                         </div>
                       </div>
@@ -2365,6 +2622,140 @@ export default function App() {
             </div>
           </div>
 
+          {/* Cotizaciones recibidas */}
+          <div className="bg-white border border-[#E2E2DE] mb-8">
+            <div className="p-5 border-b border-[#E2E2DE] flex items-center gap-2">
+              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Cotizaciones recibidas</h2>
+              {cotizacionesRecibidas.filter((c) => c.estado === 'pendiente').length > 0 && (
+                <span className="bg-[#991B1B] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {cotizacionesRecibidas.filter((c) => c.estado === 'pendiente').length}
+                </span>
+              )}
+            </div>
+
+            {cotizacionesRecibidasLoading ? (
+              <div className="p-6 space-y-3">
+                {[0, 1].map((i) => (
+                  <div key={i} className="h-16 bg-[#F5F4F0] animate-pulse" />
+                ))}
+              </div>
+            ) : cotizacionesRecibidas.length === 0 ? (
+              <p className="p-6 text-[13px] text-[#717171]">Aún no has recibido cotizaciones.</p>
+            ) : (
+              <div className="p-5 space-y-3">
+                {cotizacionesRecibidas.map((cot) => {
+                  const maquina = machines.find((m) => Number(m.id) === cot.maquina_id);
+                  const enAccion = cotizacionActionId === cot.id;
+                  return (
+                    <div key={cot.id} className="border border-[#E2E2DE] p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <p className="text-[13px] font-bold text-[#0F0F0F]">
+                            {cot.arrendatario_nombre} — {maquina?.name || `Máquina #${cot.maquina_id}`}
+                          </p>
+                          <p className="text-[11px] text-[#717171]">
+                            {cot.fecha_inicio} a {cot.fecha_fin} · ${formatPrice(cot.precio_propuesto)} propuesto
+                            {cot.notas ? ` — "${cot.notas}"` : ''}
+                          </p>
+                        </div>
+                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">
+                          {cot.estado}
+                        </span>
+                      </div>
+
+                      {cot.estado === 'pendiente' && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleAceptarCotizacionRecibida(cot.id)}
+                            disabled={enAccion}
+                            className="bg-[#16793A] hover:bg-[#115C2C] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                          >
+                            Aceptar
+                          </button>
+                          <button
+                            onClick={() => handleAbrirContraoferta(cot.id)}
+                            disabled={enAccion}
+                            className="border border-[#0F0F0F] text-[#0F0F0F] hover:bg-[#F5F4F0] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                          >
+                            Contraofertar
+                          </button>
+                          <button
+                            onClick={() => handleRechazarCotizacionRecibida(cot.id)}
+                            disabled={enAccion}
+                            className="border border-[#991B1B] text-[#991B1B] hover:bg-[#FEF2F2] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      )}
+
+                      {contraofertaFormId === cot.id && (
+                        <form onSubmit={(e) => handleSubmitContraoferta(e, cot.id)} className="bg-[#F9F9F7] border border-[#E2E2DE] p-3 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="date"
+                              required
+                              value={contraofertaFechaInicio}
+                              onChange={(e) => setContraofertaFechaInicio(e.target.value)}
+                              className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                            />
+                            <input
+                              type="date"
+                              required
+                              value={contraofertaFechaFin}
+                              onChange={(e) => setContraofertaFechaFin(e.target.value)}
+                              className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                            />
+                          </div>
+                          <input
+                            type="number"
+                            min={1}
+                            required
+                            placeholder="Precio propuesto (USD)"
+                            value={contraofertaPrecio}
+                            onChange={(e) => setContraofertaPrecio(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                          />
+                          <textarea
+                            rows={2}
+                            placeholder="Notas (opcional)"
+                            value={contraofertaNotas}
+                            onChange={(e) => setContraofertaNotas(e.target.value)}
+                            className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
+                          />
+                          <button
+                            type="submit"
+                            disabled={enAccion}
+                            className="bg-[#2B44C7] hover:bg-[#1B2D6B] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                          >
+                            Enviar contraoferta
+                          </button>
+                        </form>
+                      )}
+
+                      {cot.estado === 'aceptada' && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <p className="text-[12px] text-[#16793A] font-semibold">¡Alquiler confirmado!</p>
+                          <button
+                            onClick={() =>
+                              handleAvisarWhatsApp(
+                                cot.arrendatario_telefono,
+                                `Hola ${cot.arrendatario_nombre}, confirmé tu cotización en iMaq para "${maquina?.name || 'la máquina'}" del ${formatFechaCorta(cot.fecha_inicio_contraoferta || cot.fecha_inicio)} al ${formatFechaCorta(cot.fecha_fin_contraoferta || cot.fecha_fin)}. ¡Alquiler confirmado!`
+                              )
+                            }
+                            className="text-[10px] font-bold uppercase text-[#16793A] hover:underline flex items-center gap-1"
+                          >
+                            <PhoneCall size={12} /> Avisar por WhatsApp
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Owner's machines table */}
           <div className="bg-white border border-[#E2E2DE]">
             <div className="p-5 border-b border-[#E2E2DE]">
@@ -2372,10 +2763,18 @@ export default function App() {
             </div>
 
             {machinesLoading ? (
-              <p className="p-6 text-[13px] text-[#717171]">Cargando…</p>
+              <div className="p-6 space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-10 bg-[#F5F4F0] animate-pulse" />
+                ))}
+              </div>
             ) : ownerMachines.length === 0 ? (
-              <div className="p-10 text-center">
-                <p className="text-[13px] text-[#717171] mb-4">Todavía no has publicado ninguna máquina.</p>
+              <div className="flex flex-col items-center justify-center text-center py-16 px-6">
+                <Wrench size={28} className="text-[#717171] mb-3" />
+                <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">Todavía no has publicado ninguna máquina</h3>
+                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">
+                  Publica tu primer equipo para que otros contratistas puedan encontrarlo y alquilarlo.
+                </p>
                 <button
                   onClick={() => navigateTo('publish')}
                   className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
@@ -2399,7 +2798,7 @@ export default function App() {
                       <tr key={machine.id} className="border-b border-[#F5F4F0] hover:bg-[#F9F9F7] cursor-pointer" onClick={() => setSelectedMachine(machine)}>
                         <td className="p-4 text-[13px] font-bold text-[#0F0F0F]">{machine.name}</td>
                         <td className="p-4 text-[13px] text-[#3A3A3A] font-mono-imaq uppercase">{machine.cat}</td>
-                        <td className="p-4 text-[13px] font-mono-imaq text-[#C88010] font-bold">${machine.price}/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</td>
+                        <td className="p-4 text-[13px] font-mono-imaq text-[#C88010] font-bold">${formatPrice(machine.price)}/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</td>
                         <td className="p-4">
                           <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 ${
                             machine.status === 'available'
@@ -2534,7 +2933,7 @@ export default function App() {
                   placeholder="Email" 
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
-                  className="bg-transparent text-[13px] p-2 focus:ring-0 focus:outline-none flex-1 font-sans placeholder-[#B0B0B0] border-none"
+                  className="bg-transparent text-[13px] p-2 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 flex-1 font-sans placeholder-[#B0B0B0] border-none"
                 />
                 <button 
                   type="submit"
@@ -2561,276 +2960,322 @@ export default function App() {
       {/* ────────────────────────────────────────────────────────────────
           MACHINE DETAIL MODAL
           ──────────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
+      <Modal open={!!selectedMachine} onClose={() => setSelectedMachine(null)} maxWidth="max-w-[760px]">
         {selectedMachine && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            
-            {/* Click-away overlay */}
-            <div className="absolute inset-0" onClick={() => setSelectedMachine(null)} />
-            
-            {/* Modal Box with strict sharp corners */}
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white border border-[#E2E2DE] rounded-none w-full max-w-[760px] overflow-hidden relative z-10"
-            >
-              
-              {/* Top Banner machine photo */}
-              <div className="h-[240px] w-full relative bg-[#E2E2DE]">
-                <img
-                  src={getImageUrl(selectedMachine.img, 'maquina')}
-                  alt={selectedMachine.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end p-6">
-                  <span className="bg-[#E8F5ED] text-[#16793A] text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 mb-0.5">
-                    {selectedMachine.status === 'available' ? 'DISPONIBLE EN EL SALVADOR' : 'CONTRATADO'}
-                  </span>
-                </div>
+          <>
+            {/* Top Banner machine photo */}
+            <div className="h-[180px] w-full relative bg-[#E2E2DE] shrink-0">
+              <img
+                src={getImageUrl(selectedMachine.img, 'maquina')}
+                alt={selectedMachine.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end p-6">
+                <span className="bg-[#E8F5ED] text-[#16793A] text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 mb-0.5">
+                  {selectedMachine.status === 'available' ? 'DISPONIBLE EN EL SALVADOR' : 'CONTRATADO'}
+                </span>
               </div>
+            </div>
 
-              {/* Main Contents padded */}
-              <div className="p-6 md:p-8 space-y-6">
-                
-                {/* Header info */}
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="font-mono-imaq text-[10px] text-[#717171] uppercase tracking-[0.04em] mb-0.5 block">
-                      {selectedMachine.cat}
-                    </span>
-                    <h3 className="text-2xl font-bold text-[#0F0F0F] tracking-tight">
-                      {selectedMachine.name}
-                    </h3>
-                  </div>
+            {/* Essential info & primary actions — always visible, never scrolls */}
+            <div className="p-6 md:p-8 pb-5 space-y-4 shrink-0">
 
-                  {/* Bordered X close square */}
-                  <button 
-                    onClick={() => setSelectedMachine(null)}
-                    className="w-8 h-8 rounded-none border border-[#E2E2DE] hover:bg-[#F5F4F0] flex items-center justify-center text-[#717171] transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* Grid info details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  
-                  {/* Left Column info details */}
-                  <div className="space-y-4">
-                    <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider border-b border-[#E2E2DE] pb-2">
-                      INFORMACIÓN DEL EQUIPO
-                    </span>
-
-                    <div className="space-y-3 font-normal text-[13px] text-[#3A3A3A]">
-                      <div className="flex items-center space-x-3">
-                        <MapPin size={15} className="text-[#2B44C7] shrink-0" />
-                        <span><strong>Ubicación:</strong> {selectedMachine.location}</span>
-                      </div>
-                      
-                      <div className="flex items-center space-x-3">
-                        <span className="text-[#C88010] font-bold text-[14px] font-mono-imaq leading-none shrink-0">$</span>
-                        <span><strong>Tarifa:</strong> <span className="font-mono-imaq text-[#C88010] font-bold">${selectedMachine.price} USD</span> / {selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
-                      </div>
-
-                      <div className="flex items-center space-x-3">
-                        <User size={15} className="text-[#2B44C7] shrink-0" />
-                        <span><strong>Propietario:</strong> {selectedMachine.owner}</span>
-                      </div>
-
-                      <div className="pt-2">
-                        <p className="text-[12px] text-[#717171] leading-relaxed">
-                          {selectedMachine.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* WhatsApp Action Buttons */}
-                    <div className="flex gap-2 pt-4">
-                      <button 
-                        onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
-                        className="bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-none transition-colors flex items-center justify-center gap-2 flex-1 cursor-pointer"
-                      >
-                        <PhoneCall size={14} /> WhatsApp
-                      </button>
-                      <button 
-                        onClick={() => addToast('Formulario de cotización cargado en su panel de contratista.', 'success')}
-                        className="bg-transparent text-[#0F0F0F] border border-[#0F0F0F] hover:bg-[#F5F4F0] font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-none transition-colors flex-1"
-                      >
-                        Cotizar
-                      </button>
-                    </div>
-
-                  </div>
-
-                  {/* Right Column timeline tracker */}
-                  <div className="space-y-4">
-                    <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider border-b border-[#E2E2DE] pb-2">
-                      HISTORIAL DE ALQUILERES
-                    </span>
-
-                    <div className="relative pl-6 space-y-6">
-                      {/* Visual Timeline line */}
-                      <div className="absolute top-1 left-2 w-[1px] h-[80%] bg-[#E2E2DE]" />
-
-                      {/* Item 1 */}
-                      <div className="relative text-[12px] leading-tight flex flex-col space-y-1">
-                        <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#16793A]" />
-                        <span className="font-bold text-[#0F0F0F]">Constructora López S.A.</span>
-                        <span className="text-[#717171] font-mono-imaq text-[11px]">1-15 Nov 2024 · $6,750</span>
-                      </div>
-
-                      {/* Item 2 */}
-                      <div className="relative text-[12px] leading-tight flex flex-col space-y-1">
-                        <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#16793A]" />
-                        <span className="font-bold text-[#0F0F0F]">Obras Civiles Hernández</span>
-                        <span className="text-[#717171] font-mono-imaq text-[11px]">5-20 Oct 2024 · $6,750</span>
-                      </div>
-
-                      {/* State Now */}
-                      <div className="relative text-[12px] leading-tight flex flex-col space-y-1">
-                        <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#2B44C7] animate-pulse" />
-                        <span className="font-bold text-[#2B44C7]">Disponible ahora</span>
-                        <span className="text-[#717171]">Listo para alquilar</span>
-                      </div>
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* Matching Certified Operators Section */}
-                <div className="pt-6 border-t border-[#E2E2DE] space-y-4">
-                  <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider">
-                    OPERADORES DISPONIBLES PARA ESTE EQUIPO
+              {/* Header info */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="font-mono-imaq text-[10px] text-[#717171] uppercase tracking-[0.04em] mb-0.5 block">
+                    {selectedMachine.cat}
                   </span>
-
-                  <div className="space-y-3">
-                    {operators.slice(0, 2).map((op) => (
-                      <div 
-                        key={op.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between border border-[#E2E2DE] p-3 hover:bg-[#F9F9F7] transition-all gap-4"
-                      >
-                        
-                        <div className="flex items-center space-x-4">
-                          <img 
-                            src={op.img} 
-                            alt={op.name}
-                            className="w-10 h-10 rounded-full object-cover shrink-0 bg-[#E2E2DE]"
-                          />
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <h4 className="text-[13px] font-bold text-[#0F0F0F]">{op.name}</h4>
-                              <span className="bg-[#E8F5ED] text-[#16793A] text-[8px] font-bold px-1.5 py-0.5 uppercase tracking-wide">
-                                ✓ VERIFICADO
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[#717171]">
-                              {op.specialty} · {op.exp} exp · {op.loc}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-                          <div className="text-right sm:mr-3">
-                            <span className="block text-[8px] uppercase text-[#717171] leading-none">Tarifa Ref</span>
-                            <span className="font-mono-imaq text-[14px] font-bold text-[#C88010]">$20/hr</span>
-                          </div>
-                          
-                          <button 
-                            onClick={(e) => handleOperatorContact(e, op)}
-                            className="bg-[#2B44C7] hover:bg-[#1B2D6B] text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 transition-colors cursor-pointer"
-                          >
-                            Contratar
-                          </button>
-                        </div>
-
-                      </div>
-                    ))}
-                  </div>
+                  <h3 className="text-2xl font-bold text-[#0F0F0F] tracking-tight">
+                    {selectedMachine.name}
+                  </h3>
                 </div>
 
-                {/* Ratings Section */}
-                <div className="pt-6 border-t border-[#E2E2DE] space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider">
-                      CALIFICACIONES DE CLIENTES
-                    </span>
-                    {machineRatings.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Star size={13} className="fill-[#E8A020] stroke-[#E8A020]" />
-                        <span className="text-[12px] font-bold text-[#0F0F0F]">
-                          {(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)}
-                        </span>
-                        <span className="text-[11px] text-[#717171]">({machineRatings.length})</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {ratingsLoading && (
-                    <p className="text-[12px] text-[#717171]">Cargando calificaciones…</p>
-                  )}
-
-                  {!ratingsLoading && machineRatings.length === 0 && (
-                    <p className="text-[12px] text-[#717171]">Esta máquina aún no tiene calificaciones.</p>
-                  )}
-
-                  {!ratingsLoading && machineRatings.length > 0 && (
-                    <div className="space-y-3">
-                      {machineRatings.slice(0, 4).map((rating) => (
-                        <div key={rating.id} className="border border-[#E2E2DE] p-3">
-                          <div className="flex items-center gap-0.5 mb-1.5">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Star
-                                key={star}
-                                size={12}
-                                className={star <= rating.estrellas ? 'fill-[#E8A020] stroke-[#E8A020]' : 'stroke-[#E2E2DE]'}
-                              />
-                            ))}
-                          </div>
-                          {rating.comentario && (
-                            <p className="text-[12px] text-[#3A3A3A] leading-relaxed">{rating.comentario}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-              </div>
-              
-              {/* Modal footer closing trigger */}
-              <div className="bg-[#F5F4F0] px-6 py-4 border-t border-[#E2E2DE] flex justify-end">
-                <button 
+                {/* Bordered X close square */}
+                <button
                   onClick={() => setSelectedMachine(null)}
-                  className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[11px] font-bold uppercase tracking-widest px-5 py-2 cursor-pointer"
+                  className="w-8 h-8 rounded-none border border-[#E2E2DE] hover:bg-[#F5F4F0] flex items-center justify-center text-[#717171] transition-colors shrink-0"
                 >
-                  CERRAR VENTANA
+                  <X size={16} />
                 </button>
               </div>
 
-            </motion.div>
-          </div>
+              <div className="space-y-2 font-normal text-[13px] text-[#3A3A3A]">
+                <div className="flex items-center space-x-3">
+                  <MapPin size={15} className="text-[#2B44C7] shrink-0" />
+                  <span><strong>Ubicación:</strong> {selectedMachine.location}</span>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <span className="text-[#C88010] font-bold text-[14px] font-mono-imaq leading-none shrink-0">$</span>
+                  <span><strong>Tarifa:</strong> <span className="font-mono-imaq text-[#C88010] font-bold">${formatPrice(selectedMachine.price)} USD</span> / {selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <User size={15} className="text-[#2B44C7] shrink-0" />
+                  <span><strong>Propietario:</strong> {selectedMachine.owner}</span>
+                </div>
+
+                <p className="text-[12px] text-[#717171] leading-relaxed pt-1">
+                  {selectedMachine.description}
+                </p>
+              </div>
+
+              {/* WhatsApp Action Buttons */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
+                  className="bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-none transition-colors flex items-center justify-center gap-2 flex-1 cursor-pointer"
+                >
+                  <PhoneCall size={14} /> WhatsApp
+                </button>
+                {!cotizacionEnviada && (
+                  <button
+                    onClick={handleAbrirFormularioCotizar}
+                    className="bg-transparent text-[#0F0F0F] border border-[#0F0F0F] hover:bg-[#F5F4F0] font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-none transition-colors flex-1 cursor-pointer"
+                  >
+                    Cotizar
+                  </button>
+                )}
+              </div>
+
+              {/* Cotizar form */}
+              {isCotizarFormOpen && !cotizacionEnviada && (
+                <form onSubmit={handleSubmitCotizacion} className="border border-[#E2E2DE] p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Fecha inicio</label>
+                      <input
+                        type="date"
+                        required
+                        value={cotizarFechaInicio}
+                        onChange={(e) => setCotizarFechaInicio(e.target.value)}
+                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Fecha fin</label>
+                      <input
+                        type="date"
+                        required
+                        value={cotizarFechaFin}
+                        onChange={(e) => setCotizarFechaFin(e.target.value)}
+                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (USD)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      placeholder="Ej: 90"
+                      value={cotizarPrecio}
+                      onChange={(e) => setCotizarPrecio(e.target.value)}
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Notas (opcional)</label>
+                    <textarea
+                      rows={2}
+                      value={cotizarNotas}
+                      onChange={(e) => setCotizarNotas(e.target.value)}
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={cotizarSubmitting}
+                    className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 transition-colors disabled:opacity-60 cursor-pointer"
+                  >
+                    {cotizarSubmitting ? 'Enviando…' : 'Enviar cotización'}
+                  </button>
+                </form>
+              )}
+
+              {/* Success state after sending a cotización */}
+              {cotizacionEnviada && (
+                <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-4 space-y-3">
+                  <p className="text-[13px] text-[#16793A] leading-relaxed">
+                    ¡Cotización enviada! {selectedMachine.owner} la verá en su panel.
+                  </p>
+                  <button
+                    onClick={() =>
+                      handleAvisarWhatsApp(
+                        selectedMachine.telefonoContacto,
+                        `Hola ${selectedMachine.owner}, te mandé una cotización en iMaq para tu "${selectedMachine.name}" del ${formatFechaCorta(cotizacionEnviada.fecha_inicio)} al ${formatFechaCorta(cotizacionEnviada.fecha_fin)}. Puedes verla en tu panel.`
+                      )
+                    }
+                    className="w-full bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <PhoneCall size={14} /> Avisar a {selectedMachine.owner} por WhatsApp
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Secondary sections — collapsible, internal scroll only */}
+            <div className="overflow-y-auto flex-1 min-h-0 px-6 md:px-8 pb-6 space-y-0 border-t border-[#E2E2DE]">
+
+              <Collapsible title="Historial de alquileres">
+                <div className="relative pl-6 space-y-6">
+                  {/* Visual Timeline line */}
+                  <div className="absolute top-1 left-2 w-[1px] h-[80%] bg-[#E2E2DE]" />
+
+                  {rentalHistoryLoading && (
+                    <div className="relative text-[12px] leading-tight flex flex-col space-y-1 animate-pulse">
+                      <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#E2E2DE]" />
+                      <span className="h-3 w-24 bg-[#E2E2DE]" />
+                    </div>
+                  )}
+
+                  {!rentalHistoryLoading && machineRentalHistory.length === 0 && (
+                    <div className="relative text-[12px] leading-tight flex flex-col space-y-1">
+                      <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#E2E2DE]" />
+                      <span className="text-[#717171]">Sin historial de alquileres aún</span>
+                    </div>
+                  )}
+
+                  {!rentalHistoryLoading &&
+                    machineRentalHistory.slice(0, 4).map((alquiler, i) => (
+                      <div key={i} className="relative text-[12px] leading-tight flex flex-col space-y-1">
+                        <span
+                          className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full ${
+                            alquiler.estado === 'activo' ? 'bg-[#2B44C7] animate-pulse' : 'bg-[#16793A]'
+                          }`}
+                        />
+                        <span className="font-bold text-[#0F0F0F]">
+                          {alquiler.estado === 'activo' ? 'Alquiler en curso' : 'Alquiler finalizado'}
+                        </span>
+                        <span className="text-[#717171] font-mono-imaq text-[11px]">
+                          {formatFechaCorta(alquiler.fecha_inicio)} – {formatFechaCorta(alquiler.fecha_fin)}
+                        </span>
+                      </div>
+                    ))}
+
+                  {/* State Now */}
+                  <div className="relative text-[12px] leading-tight flex flex-col space-y-1">
+                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#2B44C7] animate-pulse" />
+                    <span className="font-bold text-[#2B44C7]">
+                      {selectedMachine.status === 'available' ? 'Disponible ahora' : 'No disponible actualmente'}
+                    </span>
+                    <span className="text-[#717171]">
+                      {selectedMachine.status === 'available' ? 'Listo para alquilar' : 'Contratado / en mantenimiento'}
+                    </span>
+                  </div>
+                </div>
+              </Collapsible>
+
+              <Collapsible title="Operadores disponibles para este equipo">
+                <div className="space-y-3">
+                  {operators.slice(0, 2).map((op) => (
+                    <div
+                      key={op.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between border border-[#E2E2DE] p-3 hover:bg-[#F9F9F7] transition-all gap-4"
+                    >
+
+                      <div className="flex items-center space-x-4">
+                        <img
+                          src={op.img}
+                          alt={op.name}
+                          className="w-10 h-10 rounded-full object-cover shrink-0 bg-[#E2E2DE]"
+                        />
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="text-[13px] font-bold text-[#0F0F0F]">{op.name}</h4>
+                            <span className="bg-[#E8F5ED] text-[#16793A] text-[8px] font-bold px-1.5 py-0.5 uppercase tracking-wide">
+                              ✓ VERIFICADO
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#717171]">
+                            {op.specialty} · {op.exp} exp · {op.loc}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                        <div className="text-right sm:mr-3">
+                          <span className="block text-[8px] uppercase text-[#717171] leading-none">Tarifa Ref</span>
+                          <span className="font-mono-imaq text-[14px] font-bold text-[#C88010]">
+                            {op.tarifaDia ? `$${formatPrice(op.tarifaDia)}/día` : 'Consultar'}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={(e) => handleOperatorContact(e, op)}
+                          className="bg-[#2B44C7] hover:bg-[#1B2D6B] text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 transition-colors cursor-pointer"
+                        >
+                          Contratar
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              </Collapsible>
+
+              <Collapsible
+                title="Calificaciones de clientes"
+                badge={
+                  machineRatings.length > 0
+                    ? `${(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)} ★ (${machineRatings.length})`
+                    : undefined
+                }
+              >
+                {ratingsLoading && (
+                  <p className="text-[12px] text-[#717171]">Cargando calificaciones…</p>
+                )}
+
+                {!ratingsLoading && machineRatings.length === 0 && (
+                  <p className="text-[12px] text-[#717171]">Esta máquina aún no tiene calificaciones.</p>
+                )}
+
+                {!ratingsLoading && machineRatings.length > 0 && (
+                  <div className="space-y-3">
+                    {machineRatings.slice(0, 4).map((rating) => (
+                      <div key={rating.id} className="border border-[#E2E2DE] p-3">
+                        <div className="flex items-center gap-0.5 mb-1.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={12}
+                              className={star <= rating.estrellas ? 'fill-[#E8A020] stroke-[#E8A020]' : 'stroke-[#E2E2DE]'}
+                            />
+                          ))}
+                        </div>
+                        {rating.comentario && (
+                          <p className="text-[12px] text-[#3A3A3A] leading-relaxed">{rating.comentario}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Collapsible>
+            </div>
+
+            {/* Modal footer closing trigger */}
+            <div className="bg-[#F5F4F0] px-6 py-4 border-t border-[#E2E2DE] flex justify-end shrink-0">
+              <button
+                onClick={() => setSelectedMachine(null)}
+                className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[11px] font-bold uppercase tracking-widest px-5 py-2 cursor-pointer"
+              >
+                CERRAR VENTANA
+              </button>
+            </div>
+          </>
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ────────────────────────────────────────────────────────────────
           AUTH / REGISTER MODAL (Ingresar / Registrarse)
           ──────────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isAuthModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            
-            {/* Overlay click away */}
-            <div className="absolute inset-0" onClick={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }} />
-
-            {/* Modal layout with zero radius sharp geometry — bounded height with internal scroll */}
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white border border-[#E2E2DE] w-full max-w-[420px] max-h-[90vh] flex flex-col relative z-10"
-            >
+      <Modal
+        open={isAuthModalOpen}
+        onClose={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }}
+        maxWidth="max-w-[420px]"
+      >
 
               {/* Title & Brand Intro (fixed, doesn't scroll) */}
               <div className="p-5 pb-3 text-center space-y-1.5 shrink-0">
@@ -2910,7 +3355,7 @@ export default function App() {
                             placeholder="Ej: constructor@obras.sv"
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                           />
                         </div>
                       </>
@@ -2941,7 +3386,7 @@ export default function App() {
                       placeholder="Ej: constructor@obras.sv"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                   </div>
 
@@ -2955,7 +3400,7 @@ export default function App() {
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                   </div>
                   </div>
@@ -3065,7 +3510,7 @@ export default function App() {
                       placeholder="Ej: Ing. Jorge Iraheta"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                   </div>
 
@@ -3090,7 +3535,7 @@ export default function App() {
                         }
                       }}
                       maxLength={10}
-                      className={`w-full bg-white border text-[#0F0F0F] text-[13px] font-medium p-3 focus:outline-none font-mono-imaq ${
+                      className={`w-full bg-white border text-[#0F0F0F] text-[13px] font-medium p-3 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 font-mono-imaq ${
                         regDuiError ? 'border-[#991B1B]' : 'border-[#E2E2DE] focus:border-[#2B44C7]'
                       }`}
                     />
@@ -3123,7 +3568,7 @@ export default function App() {
                       placeholder="Ej: jorge@infraestructuras.sv"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                   </div>
 
@@ -3143,7 +3588,7 @@ export default function App() {
                         value={regPhone}
                         onChange={(e) => setRegPhone(formatLocalPhone(e.target.value))}
                         maxLength={9}
-                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none font-mono-imaq"
+                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 font-mono-imaq"
                       />
                     </div>
                   </div>
@@ -3158,7 +3603,7 @@ export default function App() {
                       placeholder="Cree una contraseña segura"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                   </div>
 
@@ -3206,7 +3651,7 @@ export default function App() {
                             placeholder="Ej: 5"
                             value={operatorExperience}
                             onChange={(e) => setOperatorExperience(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                           />
                         </div>
                         <div>
@@ -3219,7 +3664,7 @@ export default function App() {
                             placeholder="Ej: 30"
                             value={operatorRate}
                             onChange={(e) => setOperatorRate(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                           />
                         </div>
                       </div>
@@ -3241,10 +3686,7 @@ export default function App() {
                 </form>
               )}
 
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ────────────────────────────────────────────────────────────────
           BOTTOM-RIGHT INTERACTIVE TOAST NOTIFICATIONS
