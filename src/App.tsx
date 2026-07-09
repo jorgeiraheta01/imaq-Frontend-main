@@ -83,7 +83,6 @@ import { getImageUrl, subirImagen } from './lib/cloudinary';
 import { formatLocalPhone, PHONE_PREFIX, toFullPhone } from './lib/phone';
 import ProfilePage from './ProfilePage';
 import Modal from './components/Modal';
-import Collapsible from './components/Collapsible';
 import { formatPrice } from './lib/format';
 
 type Page = 'home' | 'operators' | 'publish' | 'dashboard' | 'profile';
@@ -3494,8 +3493,9 @@ export default function App() {
             {/* Secondary sections — collapsible, internal scroll only */}
             <div className="overflow-y-auto flex-1 min-h-0 px-6 md:px-8 pb-6 space-y-0 border-t border-[#E2E2DE]">
 
-              <Collapsible title="Historial de alquileres">
-                <div className="relative pl-6 space-y-6">
+              <div className="border-t border-[#E2E2DE] pt-4">
+                <span className="text-[10px] font-bold text-[#717171] uppercase tracking-wider">Historial de alquileres</span>
+                <div className="relative pl-6 space-y-6 pt-4">
                   {/* Visual Timeline line */}
                   <div className="absolute top-1 left-2 w-[1px] h-[80%] bg-[#E2E2DE]" />
 
@@ -3541,10 +3541,11 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-              </Collapsible>
+              </div>
 
-              <Collapsible title="Operadores disponibles para este equipo">
-                <div className="space-y-3">
+              <div className="border-t border-[#E2E2DE] pt-4">
+                <span className="text-[10px] font-bold text-[#717171] uppercase tracking-wider">Operadores disponibles para este equipo</span>
+                <div className="space-y-3 pt-4">
                   {operators.slice(0, 2).map((op) => (
                     <div
                       key={op.id}
@@ -3589,16 +3590,18 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-              </Collapsible>
+              </div>
 
-              <Collapsible
-                title="Calificaciones de clientes"
-                badge={
-                  machineRatings.length > 0
-                    ? `${(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)} ★ (${machineRatings.length})`
-                    : undefined
-                }
-              >
+              <div className="border-t border-[#E2E2DE] pt-4">
+                <span className="text-[10px] font-bold text-[#717171] uppercase tracking-wider flex items-center gap-2">
+                  Calificaciones de clientes
+                  {machineRatings.length > 0 && (
+                    <span className="bg-[#F5F4F0] text-[#0F0F0F] text-[9px] font-bold px-1.5 py-0.5">
+                      {(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)} ★ ({machineRatings.length})
+                    </span>
+                  )}
+                </span>
+                <div className="pt-4">
                 {ratingsLoading && (
                   <p className="text-[12px] text-[#717171]">Cargando calificaciones…</p>
                 )}
@@ -3627,7 +3630,8 @@ export default function App() {
                     ))}
                   </div>
                 )}
-              </Collapsible>
+                </div>
+              </div>
             </div>
 
             {/* Modal footer closing trigger */}
