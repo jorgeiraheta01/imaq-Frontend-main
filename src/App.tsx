@@ -3365,8 +3365,15 @@ export default function App() {
                   <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-[#2B44C7] bg-[#EEF1FC] px-2 py-0.5">
                     {selectedMachine.cat}
                   </span>
-                  <h3 className="text-lg sm:text-xl font-bold text-[#0F0F0F] tracking-tight leading-tight truncate">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#0F0F0F] tracking-tight leading-tight truncate flex items-center gap-1.5">
                     {selectedMachine.name}
+                    <button
+                      onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
+                      title="Contactar por WhatsApp"
+                      className="text-[#16793A] hover:text-[#115C2C] transition-colors cursor-pointer shrink-0"
+                    >
+                      <PhoneCall size={15} />
+                    </button>
                   </h3>
                   <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#717171]">
                     <span className="flex items-center gap-1"><MapPin size={12} className="text-[#2B44C7]" />{selectedMachine.location}</span>
@@ -3540,7 +3547,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Footer: 3 botones */}
+            {/* Footer: 2 botones (WhatsApp bajó de relevancia: ahora es un ícono junto al nombre) */}
             <div className="bg-[#F5F4F0] p-4 border-t border-[#E2E2DE] flex flex-col sm:flex-row gap-2 shrink-0">
               {!cotizacionEnviada && (
                 <button
@@ -3550,12 +3557,6 @@ export default function App() {
                   <Send size={13} /> {isCotizarFormOpen ? 'Ocultar calendario' : 'Cotizar esta máquina'}
                 </button>
               )}
-              <button
-                onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
-                className="flex-1 border border-[#16793A] text-[#16793A] hover:bg-[#E8F5ED] font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
-                <PhoneCall size={13} /> WhatsApp
-              </button>
               <button
                 onClick={() => setSelectedMachine(null)}
                 className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white font-bold text-[11px] uppercase tracking-widest px-5 py-2.5 cursor-pointer"
