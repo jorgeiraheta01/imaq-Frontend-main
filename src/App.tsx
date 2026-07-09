@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { DayPicker, type DateRange } from 'react-day-picker';
+import 'react-day-picker/style.css';
+import { format, parseISO, isWithinInterval } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   motion,
   AnimatePresence
@@ -104,16 +108,18 @@ function formatFechaCorta(isoDate: string): string {
   return date.toLocaleDateString('es-SV', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Formats a blocked date range compactly, e.g. "12–18 jul" or "28 jul – 3 ago". */
-function formatRangoCorto(inicioIso: string, finIso: string): string {
-  const [iy, im, id] = inicioIso.split('-').map(Number);
-  const [fy, fm, fd] = finIso.split('-').map(Number);
-  const mesInicio = new Date(iy, im - 1, id).toLocaleDateString('es-SV', { month: 'short' }).replace('.', '');
-  const mesFin = new Date(fy, fm - 1, fd).toLocaleDateString('es-SV', { month: 'short' }).replace('.', '');
-  if (iy === fy && im === fm) {
-    return `${id}–${fd} ${mesInicio}`;
+/** Formats a blocked date range in Spanish, e.g. "1 al 5 de septiembre" or "28 sep al 3 oct". */
+function formatRangoEs(inicioIso: string, finIso: string): string {
+  const inicio = parseISO(inicioIso);
+  const fin = parseISO(finIso);
+  const diaInicio = format(inicio, 'd');
+  const mesInicio = format(inicio, 'MMMM', { locale: es });
+  const diaFin = format(fin, 'd');
+  const mesFin = format(fin, 'MMMM', { locale: es });
+  if (mesInicio === mesFin) {
+    return `${diaInicio} al ${diaFin} de ${mesFin}`;
   }
-  return `${id} ${mesInicio} – ${fd} ${mesFin}`;
+  return `${diaInicio} de ${mesInicio} al ${diaFin} de ${mesFin}`;
 }
 
 export default function App() {
@@ -158,6 +164,7 @@ export default function App() {
   const [isCotizarFormOpen, setIsCotizarFormOpen] = useState(false);
   const [cotizarFechaInicio, setCotizarFechaInicio] = useState('');
   const [cotizarFechaFin, setCotizarFechaFin] = useState('');
+  const [cotizarRangeError, setCotizarRangeError] = useState('');
   const [cotizarPrecio, setCotizarPrecio] = useState('');
   const [cotizarNotas, setCotizarNotas] = useState('');
   const [cotizarSubmitting, setCotizarSubmitting] = useState(false);
@@ -589,6 +596,7 @@ export default function App() {
     setIsCotizarFormOpen(false);
     setCotizarFechaInicio('');
     setCotizarFechaFin('');
+    setCotizarRangeError('');
     setCotizarPrecio('');
     setCotizarNotas('');
     setCotizacionEnviada(null);
@@ -883,6 +891,30 @@ export default function App() {
     setIsCotizarFormOpen((o) => !o);
   };
 
+  /** Bloques de fechas ya reservadas, en el formato que espera react-day-picker. */
+  const rangosBloqueados = machineDisponibilidad.map((b) => ({
+    from: parseISO(b.fecha_inicio),
+    to: parseISO(b.fecha_fin),
+  }));
+
+  /** Selección del calendario de rango: valida solapamiento contra lo ya reservado.
+   * react-day-picker ya se encarga de que "fin" nunca quede antes de "inicio" (si se
+   * elige una fecha anterior al inicio actual, reinicia el rango con esa como nuevo inicio). */
+  const handleSeleccionarRango = (range: DateRange | undefined) => {
+    setCotizarRangeError('');
+    setCotizarFechaInicio(range?.from ? format(range.from, 'yyyy-MM-dd') : '');
+    setCotizarFechaFin(range?.to ? format(range.to, 'yyyy-MM-dd') : '');
+
+    if (range?.from && range?.to) {
+      const inicio = format(range.from, 'yyyy-MM-dd');
+      const fin = format(range.to, 'yyyy-MM-dd');
+      const solapa = machineDisponibilidad.some((b) => inicio <= b.fecha_fin && fin >= b.fecha_inicio);
+      if (solapa) {
+        setCotizarRangeError('Estas fechas ya no están disponibles.');
+      }
+    }
+  };
+
   const handleSubmitCotizacion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMachine) return;
@@ -893,7 +925,7 @@ export default function App() {
     const solapa = machineDisponibilidad.some(
       (b) => cotizarFechaInicio <= b.fecha_fin && cotizarFechaFin >= b.fecha_inicio
     );
-    if (solapa) {
+    if (solapa || cotizarRangeError) {
       addToast('Las fechas seleccionadas se cruzan con un período reservado. Elige otras fechas.', 'error');
       return;
     }
@@ -3312,105 +3344,148 @@ export default function App() {
       {/* ────────────────────────────────────────────────────────────────
           MACHINE DETAIL MODAL
           ──────────────────────────────────────────────────────────────── */}
-      <Modal open={!!selectedMachine} onClose={() => setSelectedMachine(null)} maxWidth="max-w-[600px]">
-        {selectedMachine && (
+      <Modal open={!!selectedMachine} onClose={() => setSelectedMachine(null)} maxWidth="max-w-[620px]">
+        {selectedMachine && (() => {
+          const hoy = new Date();
+          const reservaActiva = machineDisponibilidad.find((b) =>
+            isWithinInterval(hoy, { start: parseISO(b.fecha_inicio), end: parseISO(b.fecha_fin) })
+          );
+          return (
           <>
-            {/* Single compact flow, no width breakpoints relied on — fits without internal scroll
-                regardless of window width. Thumbnail instead of a full banner saves the most height. */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 sm:p-6 space-y-3 max-h-[calc(90vh-64px)] overflow-y-auto">
 
-              {/* Header: thumbnail + name/category + close */}
-              <div className="flex items-start gap-3">
+              {/* Header: imagen + info esencial + cerrar */}
+              <div className="flex items-start gap-4">
                 <img
                   src={getImageUrl(selectedMachine.img, 'maquina')}
                   alt={selectedMachine.name}
-                  className="w-14 h-14 object-cover shrink-0 bg-[#E2E2DE]"
+                  className="w-16 h-16 sm:w-28 sm:h-28 rounded-xl object-cover shrink-0 bg-[#E2E2DE]"
                 />
-                <div className="flex-1 min-w-0">
-                  <span className="font-mono-imaq text-[9px] text-[#717171] uppercase tracking-[0.04em] block">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-[#2B44C7] bg-[#EEF1FC] px-2 py-0.5">
                     {selectedMachine.cat}
                   </span>
-                  <h3 className="text-[15px] font-bold text-[#0F0F0F] tracking-tight leading-tight truncate">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#0F0F0F] tracking-tight leading-tight truncate">
                     {selectedMachine.name}
                   </h3>
-                  <p className="text-[11px] text-[#3A3A3A] truncate">
-                    {selectedMachine.location} · <span className="font-mono-imaq text-[#C88010] font-bold">${formatPrice(selectedMachine.price)}</span>/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'} · {selectedMachine.owner}
-                  </p>
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#717171]">
+                    <span className="flex items-center gap-1"><MapPin size={12} className="text-[#2B44C7]" />{selectedMachine.location}</span>
+                    <span className="flex items-center gap-1"><User size={12} className="text-[#2B44C7]" />{selectedMachine.owner}</span>
+                  </div>
+                  <div className="pt-1">
+                    <span className="block text-[8px] font-bold uppercase text-[#717171] tracking-wider">Precio diario</span>
+                    <span className="font-mono-imaq text-xl font-bold text-[#2B44C7]">
+                      ${formatPrice(selectedMachine.price)}
+                      <span className="text-[11px] font-normal text-[#717171]">/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedMachine(null)}
-                  className="w-6 h-6 border border-[#E2E2DE] hover:bg-[#F5F4F0] flex items-center justify-center text-[#717171] transition-colors shrink-0 cursor-pointer"
+                  className="w-7 h-7 border border-[#E2E2DE] hover:bg-[#F5F4F0] flex items-center justify-center text-[#717171] transition-colors shrink-0 cursor-pointer"
                 >
-                  <X size={13} />
+                  <X size={14} />
                 </button>
               </div>
 
-              {selectedMachine.description && (
-                <p className="text-[11px] text-[#717171] leading-relaxed line-clamp-1">
-                  {selectedMachine.description}
-                </p>
-              )}
+              <div className="border-t border-[#E2E2DE]" />
 
-              {/* Disponibilidad: lista compacta de rangos reservados */}
-              {machineDisponibilidad.length > 0 && (
-                <div className="flex items-start gap-1.5 border border-[#FCE2E2] bg-[#FEF7F7] px-2.5 py-1.5">
-                  <CalendarX size={12} className="text-[#991B1B] shrink-0 mt-[1px]" />
-                  <p className="text-[10px] text-[#7A1F1F] leading-relaxed">
-                    <span className="font-bold uppercase tracking-wide">No disponible:</span>{' '}
-                    {machineDisponibilidad.map((b, i) => (
-                      <span key={i}>
-                        {formatRangoCorto(b.fecha_inicio, b.fecha_fin)}
-                        {i < machineDisponibilidad.length - 1 ? ', ' : ''}
-                      </span>
-                    ))}
+              {/* Banner de disponibilidad */}
+              {reservaActiva ? (
+                <div className="flex items-start gap-2 bg-[#FEF2F2] border border-[#FCE2E2] px-3 py-2.5">
+                  <CalendarX size={14} className="text-[#991B1B] shrink-0 mt-[1px]" />
+                  <p className="text-[12px] text-[#7A1F1F] leading-relaxed">
+                    <span className="font-bold uppercase">No disponible</span> — Reservado del{' '}
+                    {formatRangoEs(reservaActiva.fecha_inicio, reservaActiva.fecha_fin)}
                   </p>
                 </div>
-              )}
-
-              {!cotizacionEnviada && !isCotizarFormOpen && (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleAbrirFormularioCotizar}
-                    className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer"
-                  >
-                    Cotizar esta máquina
-                  </button>
-                  <button
-                    onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
-                    className="text-[10px] text-[#717171] hover:text-[#16793A] hover:underline cursor-pointer inline-flex items-center gap-1 shrink-0"
-                  >
-                    <PhoneCall size={10} /> WhatsApp
-                  </button>
+              ) : (
+                <div className="flex items-center gap-2 text-[12px] font-bold text-[#2B44C7]">
+                  <span className="w-2 h-2 rounded-full bg-[#2B44C7] animate-pulse" /> Disponible ahora
                 </div>
               )}
 
-              {/* Cotizar form */}
-              {isCotizarFormOpen && !cotizacionEnviada && (
-                <form onSubmit={handleSubmitCotizacion} className="border border-[#E2E2DE] p-3 space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Inicio</label>
-                      <input
-                        type="date"
-                        required
-                        min={new Date().toISOString().slice(0, 10)}
-                        value={cotizarFechaInicio}
-                        onChange={(e) => setCotizarFechaInicio(e.target.value)}
-                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Fin</label>
-                      <input
-                        type="date"
-                        required
-                        min={cotizarFechaInicio || new Date().toISOString().slice(0, 10)}
-                        value={cotizarFechaFin}
-                        onChange={(e) => setCotizarFechaFin(e.target.value)}
-                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                      />
-                    </div>
+              {selectedMachine.description && (
+                <p className="text-[13px] text-[#3A3A3A] leading-relaxed">{selectedMachine.description}</p>
+              )}
+
+              <div className="border-t border-[#E2E2DE]" />
+
+              {/* 3 columnas: historial / operadores / calificaciones */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold text-[#717171] uppercase tracking-wider mb-1.5">Historial</p>
+                  <p className="text-[11px] text-[#717171]">Sin registros previos</p>
+                  <p className={`text-[11px] font-bold mt-1 ${reservaActiva ? 'text-[#991B1B]' : 'text-[#2B44C7]'}`}>
+                    {reservaActiva ? 'No disponible' : 'Disponible ahora'}
+                  </p>
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold text-[#717171] uppercase tracking-wider mb-1.5">Operadores disponibles</p>
+                  <div className="space-y-1.5">
+                    {operators.length === 0 && <p className="text-[11px] text-[#717171]">Sin operadores</p>}
+                    {operators.slice(0, 2).map((op) => (
+                      <button
+                        key={op.id}
+                        onClick={(e) => handleOperatorContact(e, op)}
+                        className="block w-full text-left cursor-pointer group"
+                        title={`Contratar a ${op.name}`}
+                      >
+                        <p className="text-[11px] font-bold text-[#0F0F0F] group-hover:text-[#2B44C7] truncate">{op.name}</p>
+                        <p className="text-[10px] text-[#717171] truncate">
+                          {op.tarifaDia ? `+$${formatPrice(op.tarifaDia)}/día` : 'Consultar'}
+                        </p>
+                        <span
+                          className={`inline-block text-[8px] font-bold uppercase px-1.5 py-0.5 mt-0.5 ${
+                            op.verified ? 'bg-[#EEF1FC] text-[#2B44C7]' : 'bg-[#F5F4F0] text-[#717171]'
+                          }`}
+                        >
+                          {op.verified ? 'Verificado' : 'Nuevo'}
+                        </span>
+                      </button>
+                    ))}
                   </div>
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold text-[#717171] uppercase tracking-wider mb-1.5">Calificaciones</p>
+                  {ratingsLoading && <p className="text-[11px] text-[#717171]">…</p>}
+                  {!ratingsLoading && machineRatings.length === 0 && (
+                    <p className="text-[11px] text-[#717171] flex items-center gap-1">
+                      <Star size={11} className="stroke-[#E2E2DE]" /> Aún sin calificar
+                    </p>
+                  )}
+                  {!ratingsLoading && machineRatings.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Star size={11} className="fill-[#E8A020] stroke-[#E8A020]" />
+                      <span className="text-[11px] font-bold text-[#0F0F0F]">
+                        {(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)}
+                      </span>
+                      <span className="text-[10px] text-[#717171]">({machineRatings.length})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Calendario + formulario de cotizar */}
+              {isCotizarFormOpen && !cotizacionEnviada && (
+                <form onSubmit={handleSubmitCotizacion} className="border-t border-[#E2E2DE] pt-3 space-y-2">
+                  <div
+                    className="flex justify-center text-[13px] [--rdp-accent-color:#2B44C7] [--rdp-accent-background-color:#EEF1FC] [--rdp-day-width:28px] [--rdp-day-height:28px] [--rdp-day_button-width:26px] [--rdp-day_button-height:26px] [--rdp-nav-height:2rem] [--rdp-weekday-padding:0.15rem_0rem]"
+                  >
+                    <DayPicker
+                      mode="range"
+                      locale={es}
+                      selected={{ from: cotizarFechaInicio ? parseISO(cotizarFechaInicio) : undefined, to: cotizarFechaFin ? parseISO(cotizarFechaFin) : undefined }}
+                      onSelect={handleSeleccionarRango}
+                      disabled={[{ before: hoy }, ...rangosBloqueados]}
+                      numberOfMonths={1}
+                    />
+                  </div>
+                  {cotizarRangeError && (
+                    <p className="text-[11px] text-[#991B1B] font-bold text-center">{cotizarRangeError}</p>
+                  )}
                   <div>
                     <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (USD)</label>
                     <input
@@ -3420,143 +3495,77 @@ export default function App() {
                       placeholder="Ej: 90"
                       value={cotizarPrecio}
                       onChange={(e) => setCotizarPrecio(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                   </div>
                   <div>
                     <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Notas (opcional)</label>
                     <textarea
-                      rows={2}
+                      rows={1}
                       value={cotizarNotas}
                       onChange={(e) => setCotizarNotas(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
                     />
                   </div>
                   <button
                     type="submit"
-                    disabled={cotizarSubmitting}
-                    className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors disabled:opacity-60 cursor-pointer"
+                    disabled={cotizarSubmitting || !!cotizarRangeError || !cotizarFechaInicio || !cotizarFechaFin}
+                    className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 transition-colors disabled:opacity-60 cursor-pointer"
                   >
                     {cotizarSubmitting ? 'Enviando…' : 'Enviar cotización'}
                   </button>
                 </form>
               )}
 
-              {/* Success state after sending a cotización */}
+              {/* Estado de éxito tras enviar la cotización */}
               {cotizacionEnviada && (
-                <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-3 space-y-2.5">
-                  <p className="text-[12px] text-[#16793A] leading-relaxed">
-                    ¡Cotización enviada! {selectedMachine.owner} la verá en su panel.
-                  </p>
-                  <button
-                    onClick={() =>
-                      handleAvisarWhatsApp(
-                        selectedMachine.telefonoContacto,
-                        `Hola ${selectedMachine.owner}, te mandé una cotización en iMaq para tu "${selectedMachine.name}" del ${formatFechaCorta(cotizacionEnviada.fecha_inicio)} al ${formatFechaCorta(cotizacionEnviada.fecha_fin)}. Puedes verla en tu panel.`
-                      )
-                    }
-                    className="w-full bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <PhoneCall size={13} /> Avisar por WhatsApp
-                  </button>
+                <div className="border-t border-[#E2E2DE] pt-4">
+                  <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-3 space-y-2.5">
+                    <p className="text-[12px] text-[#16793A] leading-relaxed">
+                      ¡Cotización enviada! {selectedMachine.owner} la verá en su panel.
+                    </p>
+                    <button
+                      onClick={() =>
+                        handleAvisarWhatsApp(
+                          selectedMachine.telefonoContacto,
+                          `Hola ${selectedMachine.owner}, te mandé una cotización en iMaq para tu "${selectedMachine.name}" del ${formatFechaCorta(cotizacionEnviada.fecha_inicio)} al ${formatFechaCorta(cotizacionEnviada.fecha_fin)}. Puedes verla en tu panel.`
+                        )
+                      }
+                      className="w-full bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <PhoneCall size={13} /> Avisar por WhatsApp
+                    </button>
+                  </div>
                 </div>
               )}
-
-              {/* Secondary info: always a 3-column mini-grid, kept minimal so it never needs its own scroll */}
-              <div className="grid grid-cols-3 gap-2.5 border-t border-[#E2E2DE] pt-3">
-
-                {/* Historial de alquileres */}
-                <div className="min-w-0">
-                  <p className="text-[8px] font-bold text-[#717171] uppercase tracking-wider mb-1.5 truncate">Historial</p>
-                  <div className="space-y-1">
-                    {rentalHistoryLoading && (
-                      <p className="text-[10px] text-[#717171] animate-pulse">…</p>
-                    )}
-                    {!rentalHistoryLoading && machineRentalHistory.length === 0 && (
-                      <p className="text-[10px] text-[#717171]">Sin registros</p>
-                    )}
-                    {!rentalHistoryLoading &&
-                      machineRentalHistory.slice(0, 1).map((alquiler, i) => (
-                        <p key={i} className="text-[10px] text-[#717171] font-mono-imaq truncate">
-                          {formatFechaCorta(alquiler.fecha_inicio)}–{formatFechaCorta(alquiler.fecha_fin)}
-                        </p>
-                      ))}
-                    <p className="text-[10px] font-bold text-[#2B44C7] truncate">
-                      {selectedMachine.status === 'available' ? 'Disponible ahora' : 'No disponible'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Operadores disponibles */}
-                <div className="min-w-0">
-                  <p className="text-[8px] font-bold text-[#717171] uppercase tracking-wider mb-1.5 truncate">Operadores</p>
-                  <div className="space-y-1.5">
-                    {operators.length === 0 && (
-                      <p className="text-[10px] text-[#717171]">Sin operadores</p>
-                    )}
-                    {operators.slice(0, 2).map((op) => (
-                      <button
-                        key={op.id}
-                        onClick={(e) => handleOperatorContact(e, op)}
-                        className="block w-full text-left cursor-pointer group"
-                        title={`Contratar a ${op.name}`}
-                      >
-                        <p className="text-[10px] font-bold text-[#0F0F0F] group-hover:text-[#2B44C7] truncate">{op.name}</p>
-                        <p className="text-[9px] text-[#717171] truncate">
-                          {op.tarifaDia ? `$${formatPrice(op.tarifaDia)}/día` : 'Consultar'}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Calificaciones de clientes */}
-                <div className="min-w-0">
-                  <p className="text-[8px] font-bold text-[#717171] uppercase tracking-wider mb-1.5 truncate">
-                    Calificaciones{machineRatings.length > 0 ? ` (${machineRatings.length})` : ''}
-                  </p>
-                  <div className="space-y-1">
-                    {ratingsLoading && <p className="text-[10px] text-[#717171]">…</p>}
-                    {!ratingsLoading && machineRatings.length === 0 && (
-                      <p className="text-[10px] text-[#717171]">Sin calificar</p>
-                    )}
-                    {!ratingsLoading && machineRatings.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              size={9}
-                              className={
-                                star <= Math.round(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length)
-                                  ? 'fill-[#E8A020] stroke-[#E8A020]'
-                                  : 'stroke-[#E2E2DE]'
-                              }
-                            />
-                          ))}
-                        </div>
-                        {machineRatings[0].comentario && (
-                          <p className="text-[10px] text-[#3A3A3A] leading-snug line-clamp-2">{machineRatings[0].comentario}</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-              </div>
             </div>
 
-            {/* Modal footer closing trigger */}
-            <div className="bg-[#F5F4F0] px-4 py-3 border-t border-[#E2E2DE] flex justify-end shrink-0">
+            {/* Footer: 3 botones */}
+            <div className="bg-[#F5F4F0] p-4 border-t border-[#E2E2DE] flex flex-col sm:flex-row gap-2 shrink-0">
+              {!cotizacionEnviada && (
+                <button
+                  onClick={handleAbrirFormularioCotizar}
+                  className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Send size={13} /> {isCotizarFormOpen ? 'Ocultar calendario' : 'Cotizar esta máquina'}
+                </button>
+              )}
+              <button
+                onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
+                className="flex-1 border border-[#16793A] text-[#16793A] hover:bg-[#E8F5ED] font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <PhoneCall size={13} /> WhatsApp
+              </button>
               <button
                 onClick={() => setSelectedMachine(null)}
-                className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[11px] font-bold uppercase tracking-widest px-5 py-2 cursor-pointer"
+                className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white font-bold text-[11px] uppercase tracking-widest px-5 py-2.5 cursor-pointer"
               >
-                CERRAR VENTANA
+                Cerrar ventana
               </button>
             </div>
           </>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* ────────────────────────────────────────────────────────────────
