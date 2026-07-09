@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import {
   motion,
   AnimatePresence
@@ -35,7 +36,7 @@ import {
   ImagePlus,
   Trash2,
 } from 'lucide-react';
-import { Machine, Operator, User as UserProfile, ToastMessage, DepartamentoApi, CalificacionApi, AlquilerPublicoApi, CotizacionApi } from './types';
+import { Machine, Operator, User as UserProfile, ToastMessage, DepartamentoApi, CalificacionApi, AlquilerApi, AlquilerPublicoApi, BloqueDisponibilidadApi, CotizacionApi, EstadoCotizacion } from './types';
 import { fetchMachines, fetchOperators, mapMaquinaToMachine, mapOperadorToOperator } from './data';
 import {
   ApiError,
@@ -56,14 +57,17 @@ import {
   listarCotizacionesEnviadas,
   listarCotizacionesRecibidas,
   listarDepartamentos,
+  listarDisponibilidadMaquina,
   listarFavoritos,
   listarMaquinas,
+  listarMisAlquileres,
   listarOperadores,
   loginUsuario,
   obtenerPerfilActual,
   rechazarCotizacion,
   recuperarPassword,
   registrarUsuario,
+  resumenCotizacionesNoVistas,
 } from './lib/api';
 import {
   getCurrentUser,
@@ -133,6 +137,7 @@ export default function App() {
   // Public rental history for the currently open machine modal
   const [machineRentalHistory, setMachineRentalHistory] = useState<AlquilerPublicoApi[]>([]);
   const [rentalHistoryLoading, setRentalHistoryLoading] = useState(false);
+  const [machineDisponibilidad, setMachineDisponibilidad] = useState<BloqueDisponibilidadApi[]>([]);
 
   // Real registered-operators count, shown in the Operators page stats footer
   const [operadoresCount, setOperadoresCount] = useState<number | null>(null);
@@ -158,6 +163,13 @@ export default function App() {
   const [contraofertaFechaInicio, setContraofertaFechaInicio] = useState('');
   const [contraofertaFechaFin, setContraofertaFechaFin] = useState('');
   const [contraofertaNotas, setContraofertaNotas] = useState('');
+  const [contraofertaMostrarFechas, setContraofertaMostrarFechas] = useState(false);
+
+  // Renter dashboard: cotizaciones enviadas + alquileres
+  const [misCotizacionesEnviadas, setMisCotizacionesEnviadas] = useState<CotizacionApi[]>([]);
+  const [cotizacionesEnviadasLoading, setCotizacionesEnviadasLoading] = useState(false);
+  const [misAlquileres, setMisAlquileres] = useState<AlquilerApi[]>([]);
+  const [alquileresLoading, setAlquileresLoading] = useState(false);
 
   // Selected roles on Register form
   const [registerRole, setRegisterRole] = useState<'owner' | 'operator' | 'renter'>('renter');
@@ -426,11 +438,13 @@ export default function App() {
         const user = usuarioApiToUser(usuario);
         setCurrentUser(user);
         setLoggedInUser(user);
+        mostrarPopupNotificaciones();
       })
       .catch(() => {
         clearSession();
         setLoggedInUser(null);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // If a silent token refresh ever fails (refresh token missing/expired/
@@ -467,11 +481,12 @@ export default function App() {
       });
   }, [loggedInUser]);
 
-  // Guard the owner-only dashboard route and the login-only profile route.
+  // Guard login-required routes.
   useEffect(() => {
-    if (currentPage === 'dashboard' && (!loggedInUser || loggedInUser.role !== 'owner')) {
+    if (currentPage === 'dashboard' && !loggedInUser) {
       setCurrentPage('home');
-      addToast('Acceso restringido: el panel es solo para propietarios.', 'error');
+      setAuthTab('login');
+      setIsAuthModalOpen(true);
     }
     if (currentPage === 'profile' && !loggedInUser) {
       setCurrentPage('home');
@@ -544,6 +559,17 @@ export default function App() {
       .then(setMachineRentalHistory)
       .catch(() => setMachineRentalHistory([]))
       .finally(() => setRentalHistoryLoading(false));
+  }, [selectedMachine]);
+
+  // Fetch availability blocks for the machine currently open.
+  useEffect(() => {
+    if (!selectedMachine) {
+      setMachineDisponibilidad([]);
+      return;
+    }
+    listarDisponibilidadMaquina(Number(selectedMachine.id))
+      .then(setMachineDisponibilidad)
+      .catch(() => setMachineDisponibilidad([]));
   }, [selectedMachine]);
 
   // Reset the "Cotizar" form whenever the open machine changes (or the modal closes).
@@ -655,6 +681,30 @@ export default function App() {
       .catch(() => {});
   };
 
+  const mostrarPopupNotificaciones = () => {
+    resumenCotizacionesNoVistas()
+      .then((resumen) => {
+        if (resumen.total === 0) return;
+        const lines: string[] = [];
+        if (resumen.recibidas_pendientes > 0)
+          lines.push(`${resumen.recibidas_pendientes} cotización(es) pendiente(s) de revisión`);
+        if (resumen.respuestas_nuevas > 0)
+          lines.push(`${resumen.respuestas_nuevas} respuesta(s) nueva(s) a tus cotizaciones`);
+        Swal.fire({
+          title: 'Tienes cotizaciones nuevas',
+          html: lines.map((l) => `<p style="margin:4px 0;font-size:14px">${l}</p>`).join(''),
+          icon: 'info',
+          confirmButtonText: 'Ir a Mi Panel',
+          confirmButtonColor: '#2B44C7',
+          showCancelButton: true,
+          cancelButtonText: 'Cerrar',
+        }).then((result) => {
+          if (result.isConfirmed) navigateTo('dashboard');
+        });
+      })
+      .catch(() => {});
+  };
+
   const cargarCotizacionesRecibidas = () => {
     setCotizacionesRecibidasLoading(true);
     listarCotizacionesRecibidas()
@@ -703,20 +753,25 @@ export default function App() {
     setContraofertaFechaInicio('');
     setContraofertaFechaFin('');
     setContraofertaNotas('');
+    setContraofertaMostrarFechas(false);
   };
 
   const handleSubmitContraoferta = async (e: React.FormEvent, id: number) => {
     e.preventDefault();
-    if (!contraofertaPrecio || !contraofertaFechaInicio || !contraofertaFechaFin) {
-      addToast('Completa precio y fechas de la contraoferta', 'error');
+    if (!contraofertaPrecio) {
+      addToast('Indica el precio de tu contraoferta', 'error');
+      return;
+    }
+    if (contraofertaMostrarFechas && (!contraofertaFechaInicio || !contraofertaFechaFin)) {
+      addToast('Completa ambas fechas de la contraoferta', 'error');
       return;
     }
     setCotizacionActionId(id);
     try {
       await contraofertarCotizacion(id, {
         precio_contraoferta: Number(contraofertaPrecio),
-        fecha_inicio_contraoferta: contraofertaFechaInicio,
-        fecha_fin_contraoferta: contraofertaFechaFin,
+        fecha_inicio_contraoferta: contraofertaFechaInicio || null,
+        fecha_fin_contraoferta: contraofertaFechaFin || null,
         notas_contraoferta: contraofertaNotas || null,
       });
       addToast('Contraoferta enviada', 'success');
@@ -730,10 +785,72 @@ export default function App() {
     }
   };
 
-  // Carga cotizaciones recibidas al entrar al panel de propietario.
+  // Renter dashboard loaders
+  const cargarCotizacionesEnviadas = () => {
+    setCotizacionesEnviadasLoading(true);
+    listarCotizacionesEnviadas()
+      .then(setMisCotizacionesEnviadas)
+      .catch(() => setMisCotizacionesEnviadas([]))
+      .finally(() => setCotizacionesEnviadasLoading(false));
+  };
+
+  const cargarMisAlquileres = () => {
+    setAlquileresLoading(true);
+    listarMisAlquileres()
+      .then(setMisAlquileres)
+      .catch(() => setMisAlquileres([]))
+      .finally(() => setAlquileresLoading(false));
+  };
+
+  const handleAceptarContraofertaEnviada = async (id: number) => {
+    setCotizacionActionId(id);
+    try {
+      await aceptarCotizacion(id);
+      addToast('¡Alquiler confirmado!', 'success');
+      cargarCotizacionesEnviadas();
+      refreshCotizacionesNoVistas();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'No se pudo aceptar la contraoferta';
+      addToast(message, 'error');
+    } finally {
+      setCotizacionActionId(null);
+    }
+  };
+
+  const handleCancelarCotizacionEnviada = async (id: number) => {
+    setCotizacionActionId(id);
+    try {
+      await cancelarCotizacion(id);
+      addToast('Cotización cancelada', 'info');
+      cargarCotizacionesEnviadas();
+      refreshCotizacionesNoVistas();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'No se pudo cancelar la cotización';
+      addToast(message, 'error');
+    } finally {
+      setCotizacionActionId(null);
+    }
+  };
+
+  const ESTADO_COTIZACION_LABEL: Record<EstadoCotizacion, string> = {
+    pendiente: 'Pendiente',
+    contraoferta: 'Contraoferta recibida',
+    aceptada: 'Aceptada',
+    rechazada: 'Rechazada',
+    cancelada: 'Cancelada',
+    expirada: 'Expirada',
+  };
+
+  // Carga datos del dashboard según el rol.
   useEffect(() => {
-    if (currentPage === 'dashboard' && loggedInUser?.role === 'owner') {
-      cargarCotizacionesRecibidas();
+    if (currentPage === 'dashboard' && loggedInUser) {
+      if (loggedInUser.role === 'owner') {
+        cargarCotizacionesRecibidas();
+      }
+      if (loggedInUser.role === 'renter') {
+        cargarCotizacionesEnviadas();
+        cargarMisAlquileres();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, loggedInUser]);
@@ -759,6 +876,13 @@ export default function App() {
     if (!selectedMachine) return;
     if (!cotizarFechaInicio || !cotizarFechaFin || !cotizarPrecio) {
       addToast('Completa las fechas y el precio propuesto', 'error');
+      return;
+    }
+    const solapa = machineDisponibilidad.some(
+      (b) => cotizarFechaInicio <= b.fecha_fin && cotizarFechaFin >= b.fecha_inicio
+    );
+    if (solapa) {
+      addToast('Las fechas seleccionadas se cruzan con un período reservado. Elige otras fechas.', 'error');
       return;
     }
     setCotizarSubmitting(true);
@@ -936,9 +1060,8 @@ export default function App() {
       setLoginEmail('');
       setLoginPassword('');
 
-      if (user.role === 'owner') {
-        navigateTo('dashboard');
-      }
+      navigateTo('dashboard');
+      mostrarPopupNotificaciones();
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'No se pudo iniciar sesión';
       addToast(message, 'error');
@@ -1038,8 +1161,7 @@ export default function App() {
       setOperatorExperience('');
       setOperatorRate('');
 
-      // Auto-redirect: owners land on their dashboard, everyone else stays on the catalog.
-      navigateTo(newUser.role === 'owner' ? 'dashboard' : 'home');
+      navigateTo('dashboard');
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setDuiConflictMessage(true);
@@ -1207,7 +1329,9 @@ export default function App() {
                         </span>
                       )}
                       {cotizacionesNoVistas > 0 && (
-                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#991B1B] border border-white" />
+                        <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] rounded-full bg-[#991B1B] border-2 border-white text-white text-[10px] font-bold flex items-center justify-center px-1">
+                          {cotizacionesNoVistas > 9 ? '9+' : cotizacionesNoVistas}
+                        </span>
                       )}
                     </span>
                     {loggedInUser.name}
@@ -1315,7 +1439,9 @@ export default function App() {
                       >
                         Mi Panel
                         {cotizacionesNoVistas > 0 && (
-                          <span className="w-2 h-2 rounded-full bg-[#991B1B]" />
+                          <span className="min-w-[18px] h-[18px] rounded-full bg-[#991B1B] text-white text-[10px] font-bold flex items-center justify-center px-1">
+                            {cotizacionesNoVistas > 9 ? '9+' : cotizacionesNoVistas}
+                          </span>
                         )}
                       </button>
                       <button
@@ -2635,27 +2761,32 @@ export default function App() {
       )}
 
       {/* ────────────────────────────────────────────────────────────────
-          PAGE 4: OWNER DASHBOARD (gated to loggedInUser.role === 'owner')
+          PAGE 4: MI PANEL (all logged-in roles)
           ──────────────────────────────────────────────────────────────── */}
-      {currentPage === 'dashboard' && loggedInUser?.role === 'owner' && (
+      {currentPage === 'dashboard' && loggedInUser && (
         <main className="flex-1 bg-[#F5F4F0] py-12 px-4 max-w-[1140px] mx-auto w-full">
 
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div>
               <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em] mb-1">
-                PANEL DE PROPIETARIO
+                {loggedInUser.role === 'owner' ? 'PANEL DE PROPIETARIO' : loggedInUser.role === 'renter' ? 'PANEL DE ARRENDATARIO' : 'PANEL DE OPERADOR'}
               </span>
               <h1 className="text-[#0F0F0F] text-2xl sm:text-3xl font-extrabold tracking-tight">
                 Hola, {loggedInUser.name}
               </h1>
             </div>
-            <button
-              onClick={() => navigateTo('publish')}
-              className="bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] font-bold text-[12px] tracking-widest uppercase px-6 py-3 transition-colors cursor-pointer flex items-center gap-2"
-            >
-              <Plus size={14} /> Publicar máquina
-            </button>
+            {loggedInUser.role === 'owner' && (
+              <button
+                onClick={() => navigateTo('publish')}
+                className="bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] font-bold text-[12px] tracking-widest uppercase px-6 py-3 transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <Plus size={14} /> Publicar máquina
+              </button>
+            )}
           </div>
+
+          {/* ─── OWNER SECTIONS ─── */}
+          {loggedInUser.role === 'owner' && (<>
 
           {/* Stats row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
@@ -2746,22 +2877,6 @@ export default function App() {
 
                       {contraofertaFormId === cot.id && (
                         <form onSubmit={(e) => handleSubmitContraoferta(e, cot.id)} className="bg-[#F9F9F7] border border-[#E2E2DE] p-3 space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="date"
-                              required
-                              value={contraofertaFechaInicio}
-                              onChange={(e) => setContraofertaFechaInicio(e.target.value)}
-                              className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                            />
-                            <input
-                              type="date"
-                              required
-                              value={contraofertaFechaFin}
-                              onChange={(e) => setContraofertaFechaFin(e.target.value)}
-                              className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                            />
-                          </div>
                           <input
                             type="number"
                             min={1}
@@ -2778,6 +2893,35 @@ export default function App() {
                             onChange={(e) => setContraofertaNotas(e.target.value)}
                             className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
                           />
+                          {!contraofertaMostrarFechas ? (
+                            <button
+                              type="button"
+                              onClick={() => setContraofertaMostrarFechas(true)}
+                              className="text-[11px] text-[#2B44C7] font-medium hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <Calendar size={12} /> ¿También quieres proponer otras fechas?
+                            </button>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold uppercase text-[#717171]">Nuevas fechas propuestas</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  type="date"
+                                  required
+                                  value={contraofertaFechaInicio}
+                                  onChange={(e) => setContraofertaFechaInicio(e.target.value)}
+                                  className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                                />
+                                <input
+                                  type="date"
+                                  required
+                                  value={contraofertaFechaFin}
+                                  onChange={(e) => setContraofertaFechaFin(e.target.value)}
+                                  className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                                />
+                              </div>
+                            </div>
+                          )}
                           <button
                             type="submit"
                             disabled={enAccion}
@@ -2873,6 +3017,149 @@ export default function App() {
             )}
           </div>
 
+          </>)}
+
+          {/* ─── RENTER SECTIONS ─── */}
+          {loggedInUser.role === 'renter' && (<>
+
+          {/* Mis cotizaciones enviadas */}
+          <div className="bg-white border border-[#E2E2DE] mb-8">
+            <div className="p-5 border-b border-[#E2E2DE]">
+              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Mis cotizaciones enviadas</h2>
+            </div>
+
+            {cotizacionesEnviadasLoading ? (
+              <div className="p-6 space-y-3">
+                {[0, 1].map((i) => (
+                  <div key={i} className="h-16 bg-[#F5F4F0] animate-pulse" />
+                ))}
+              </div>
+            ) : misCotizacionesEnviadas.length === 0 ? (
+              <p className="p-6 text-[13px] text-[#717171]">Aún no has enviado ninguna cotización.</p>
+            ) : (
+              <div className="p-5 space-y-3">
+                {misCotizacionesEnviadas.map((cot) => {
+                  const maquina = machines.find((m) => Number(m.id) === cot.maquina_id);
+                  const esContraoferta = cot.estado === 'contraoferta';
+                  const enAccion = cotizacionActionId === cot.id;
+                  return (
+                    <div key={cot.id} className="border border-[#E2E2DE] p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <p className="text-[13px] font-bold text-[#0F0F0F]">{maquina?.name || `Máquina #${cot.maquina_id}`}</p>
+                          <p className="text-[11px] text-[#717171]">
+                            {cot.fecha_inicio} a {cot.fecha_fin} · ${formatPrice(cot.precio_propuesto)} propuesto
+                          </p>
+                        </div>
+                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">
+                          {ESTADO_COTIZACION_LABEL[cot.estado]}
+                        </span>
+                      </div>
+
+                      {esContraoferta && (
+                        <div className="bg-[#FFF9E6] border border-[#C88010]/30 p-3 space-y-2">
+                          <p className="text-[12px] text-[#0F0F0F]">
+                            Contraoferta: <strong>{cot.fecha_inicio_contraoferta} a {cot.fecha_fin_contraoferta}</strong> · $
+                            {formatPrice(cot.precio_contraoferta ?? 0)}
+                            {cot.notas_contraoferta ? ` — "${cot.notas_contraoferta}"` : ''}
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleAceptarContraofertaEnviada(cot.id)}
+                              disabled={enAccion}
+                              className="bg-[#16793A] hover:bg-[#115C2C] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                            >
+                              Aceptar
+                            </button>
+                            <button
+                              onClick={() => handleCancelarCotizacionEnviada(cot.id)}
+                              disabled={enAccion}
+                              className="border border-[#991B1B] text-[#991B1B] hover:bg-[#FEF2F2] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {cot.estado === 'pendiente' && (
+                        <button
+                          onClick={() => handleCancelarCotizacionEnviada(cot.id)}
+                          disabled={enAccion}
+                          className="text-[10px] font-bold uppercase text-[#991B1B] hover:underline disabled:opacity-60"
+                        >
+                          Cancelar cotización
+                        </button>
+                      )}
+
+                      {cot.estado === 'aceptada' && (
+                        <p className="text-[12px] text-[#16793A] font-semibold">¡Alquiler confirmado!</p>
+                      )}
+                      {cot.estado === 'rechazada' && cot.motivo_rechazo && (
+                        <p className="text-[11px] text-[#717171]">Motivo: {cot.motivo_rechazo}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Historial de alquileres */}
+          <div className="bg-white border border-[#E2E2DE]">
+            <div className="p-5 border-b border-[#E2E2DE]">
+              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Historial de alquileres</h2>
+            </div>
+
+            {alquileresLoading ? (
+              <div className="p-6 space-y-3">
+                {[0, 1].map((i) => (
+                  <div key={i} className="h-12 bg-[#F5F4F0] animate-pulse" />
+                ))}
+              </div>
+            ) : misAlquileres.length === 0 ? (
+              <p className="p-6 text-[13px] text-[#717171]">Aún no tienes alquileres registrados.</p>
+            ) : (
+              <div className="p-5 space-y-3">
+                {misAlquileres.map((alq) => {
+                  const maquina = machines.find((m) => Number(m.id) === alq.maquina_id);
+                  return (
+                    <div key={alq.id} className="flex items-center justify-between border border-[#E2E2DE] p-3 gap-3 flex-wrap">
+                      <div>
+                        <p className="text-[13px] font-bold text-[#0F0F0F]">{maquina?.name || `Máquina #${alq.maquina_id}`}</p>
+                        <p className="text-[11px] text-[#717171]">{alq.fecha_inicio} a {alq.fecha_fin} · ${formatPrice(alq.costo_total ?? alq.precio_acordado)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">{alq.estado}</span>
+                        {alq.estado === 'finalizado' && (
+                          <button
+                            onClick={() => addToast('Abre el detalle de la máquina para calificarla desde el catálogo.', 'info')}
+                            className="text-[10px] font-bold uppercase text-[#2B44C7] hover:underline"
+                          >
+                            Calificar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          </>)}
+
+          {/* ─── OPERATOR SECTION ─── */}
+          {loggedInUser.role === 'operator' && (
+            <div className="bg-white border border-[#E2E2DE] p-8 text-center">
+              <Briefcase size={28} className="text-[#717171] mx-auto mb-3" />
+              <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">Panel de operador</h3>
+              <p className="text-[13px] text-[#717171] max-w-[400px] mx-auto">
+                Próximamente podrás ver las solicitudes de trabajo y alquileres donde estás asignado como operador.
+              </p>
+            </div>
+          )}
+
         </main>
       )}
 
@@ -2882,10 +3169,8 @@ export default function App() {
       {currentPage === 'profile' && loggedInUser && (
         <ProfilePage
           user={loggedInUser}
-          machines={machines}
           onUserChange={setLoggedInUser}
           addToast={addToast}
-          onNavigatePublish={() => navigateTo('publish')}
           onLogout={handleLogout}
         />
       )}
@@ -3019,7 +3304,7 @@ export default function App() {
         {selectedMachine && (
           <>
             {/* Top Banner machine photo */}
-            <div className="h-[180px] w-full relative bg-[#E2E2DE] shrink-0">
+            <div className="h-[160px] w-full relative bg-[#E2E2DE] shrink-0">
               <img
                 src={getImageUrl(selectedMachine.img, 'maquina')}
                 alt={selectedMachine.name}
@@ -3071,28 +3356,85 @@ export default function App() {
                   <span><strong>Propietario:</strong> {selectedMachine.owner}</span>
                 </div>
 
-                <p className="text-[12px] text-[#717171] leading-relaxed pt-1">
-                  {selectedMachine.description}
-                </p>
-              </div>
-
-              {/* WhatsApp Action Buttons */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
-                  className="bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-none transition-colors flex items-center justify-center gap-2 flex-1 cursor-pointer"
-                >
-                  <PhoneCall size={14} /> WhatsApp
-                </button>
-                {!cotizacionEnviada && (
-                  <button
-                    onClick={handleAbrirFormularioCotizar}
-                    className="bg-transparent text-[#0F0F0F] border border-[#0F0F0F] hover:bg-[#F5F4F0] font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-none transition-colors flex-1 cursor-pointer"
-                  >
-                    Cotizar
-                  </button>
+                {selectedMachine.description && (
+                  <p className="text-[12px] text-[#717171] leading-relaxed pt-1 line-clamp-2">
+                    {selectedMachine.description}
+                  </p>
                 )}
               </div>
+
+              {/* Mini-calendar: disponibilidad */}
+              {machineDisponibilidad.length > 0 && (() => {
+                const hoy = new Date();
+                const mesInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                const meses = [0, 1].map((offset) => {
+                  const m = new Date(mesInicio.getFullYear(), mesInicio.getMonth() + offset, 1);
+                  const diasEnMes = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+                  const primerDia = m.getDay();
+                  const dias: (number | null)[] = Array.from({ length: primerDia }, () => null);
+                  for (let d = 1; d <= diasEnMes; d++) dias.push(d);
+                  const nombre = m.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' });
+                  return { nombre, dias, year: m.getFullYear(), month: m.getMonth() };
+                });
+                const esBloqueado = (year: number, month: number, day: number) => {
+                  const fecha = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  return machineDisponibilidad.some((b) => fecha >= b.fecha_inicio && fecha <= b.fecha_fin);
+                };
+                return (
+                  <div className="border border-[#E2E2DE] p-3">
+                    <p className="text-[10px] font-bold uppercase text-[#717171] mb-2">Disponibilidad</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {meses.map((mes) => (
+                        <div key={mes.nombre}>
+                          <p className="text-[11px] font-bold text-[#0F0F0F] mb-1 capitalize">{mes.nombre}</p>
+                          <div className="grid grid-cols-7 gap-px text-center">
+                            {['D','L','M','M','J','V','S'].map((d, i) => (
+                              <span key={i} className="text-[8px] font-bold text-[#717171] py-0.5">{d}</span>
+                            ))}
+                            {mes.dias.map((day, i) => {
+                              if (day === null) return <span key={`e${i}`} />;
+                              const bloq = esBloqueado(mes.year, mes.month, day);
+                              return (
+                                <span
+                                  key={day}
+                                  className={`text-[10px] py-0.5 ${bloq ? 'bg-[#FEF2F2] text-[#991B1B] font-bold line-through' : 'text-[#3A3A3A]'}`}
+                                  title={bloq ? 'Reservado' : 'Disponible'}
+                                >
+                                  {day}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 text-[9px] text-[#717171]">
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-[#FEF2F2] border border-[#991B1B]/30" /> Reservado</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-white border border-[#E2E2DE]" /> Disponible</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Primary CTA: Cotizar */}
+              {!cotizacionEnviada && (
+                <button
+                  onClick={handleAbrirFormularioCotizar}
+                  className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[12px] uppercase tracking-widest px-4 py-3.5 transition-colors cursor-pointer"
+                >
+                  Cotizar esta máquina
+                </button>
+              )}
+
+              {/* Secondary: WhatsApp text link */}
+              <p className="text-center">
+                <button
+                  onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
+                  className="text-[11px] text-[#717171] hover:text-[#16793A] hover:underline cursor-pointer inline-flex items-center gap-1"
+                >
+                  <PhoneCall size={11} /> ¿Tienes una pregunta antes de cotizar? Escríbele por WhatsApp
+                </button>
+              </p>
 
               {/* Cotizar form */}
               {isCotizarFormOpen && !cotizacionEnviada && (
@@ -3103,6 +3445,7 @@ export default function App() {
                       <input
                         type="date"
                         required
+                        min={new Date().toISOString().slice(0, 10)}
                         value={cotizarFechaInicio}
                         onChange={(e) => setCotizarFechaInicio(e.target.value)}
                         className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
@@ -3113,6 +3456,7 @@ export default function App() {
                       <input
                         type="date"
                         required
+                        min={cotizarFechaInicio || new Date().toISOString().slice(0, 10)}
                         value={cotizarFechaFin}
                         onChange={(e) => setCotizarFechaFin(e.target.value)}
                         className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"

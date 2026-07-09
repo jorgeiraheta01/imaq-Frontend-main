@@ -1,6 +1,7 @@
 import type {
   AlquilerApi,
   AlquilerPublicoApi,
+  BloqueDisponibilidadApi,
   CalificacionApi,
   CalificacionCreateApi,
   CambiarPasswordApi,
@@ -24,6 +25,7 @@ import type {
   OperadorUpdateApi,
   RecuperarPasswordRequestApi,
   ResetPasswordRequestApi,
+  ResumenNoVistasApi,
   TokenApi,
   UsuarioApi,
   UsuarioCreateApi,
@@ -271,6 +273,12 @@ export function listarAlquileresPublicosPorMaquina(maquinaId: number): Promise<A
   return request<AlquilerPublicoApi[]>(`/alquileres/publico/por-maquina/${maquinaId}`);
 }
 
+/* ───────────────────────── DISPONIBILIDAD ───────────────────────── */
+
+export function listarDisponibilidadMaquina(maquinaId: number): Promise<BloqueDisponibilidadApi[]> {
+  return request<BloqueDisponibilidadApi[]>(`/maquinas/${maquinaId}/disponibilidad`);
+}
+
 /* ───────────────────────── COTIZACIONES ───────────────────────── */
 
 export function crearCotizacion(datos: CotizacionCreateApi): Promise<CotizacionApi> {
@@ -303,6 +311,10 @@ export function cancelarCotizacion(id: number): Promise<CotizacionApi> {
 
 export function contarCotizacionesNoVistas(): Promise<{ total: number }> {
   return request<{ total: number }>('/cotizaciones/no-vistas/count', { auth: true });
+}
+
+export function resumenCotizacionesNoVistas(): Promise<ResumenNoVistasApi> {
+  return request<ResumenNoVistasApi>('/cotizaciones/resumen-no-vistas', { auth: true });
 }
 
 /* ───────────────────────── DOCUMENTOS DE VERIFICACIÓN ───────────────────────── */

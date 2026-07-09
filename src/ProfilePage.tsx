@@ -5,20 +5,15 @@ import {
   ShieldCheck,
   Upload,
 } from 'lucide-react';
-import { Machine, User as UserProfile, AlquilerApi, CotizacionApi, OperadorApi, TipoDocumento } from './types';
-import { formatPrice } from './lib/format';
+import { User as UserProfile, OperadorApi, TipoDocumento } from './types';
 import {
   ApiError,
-  aceptarCotizacion,
   actualizarOperador,
   actualizarUsuario,
   cambiarPassword,
-  cancelarCotizacion,
   cerrarTodasLasSesiones,
   crearDocumentoVerificacion,
   crearOperador,
-  listarCotizacionesEnviadas,
-  listarMisAlquileres,
   listarOperadores,
 } from './lib/api';
 import { setCurrentUser } from './lib/auth';
@@ -27,10 +22,8 @@ import { formatLocalPhone, fromFullPhone, PHONE_PREFIX, toFullPhone } from './li
 
 interface ProfilePageProps {
   user: UserProfile;
-  machines: Machine[];
   onUserChange: (user: UserProfile) => void;
   addToast: (message: string, type?: 'success' | 'info' | 'error') => void;
-  onNavigatePublish: () => void;
   onLogout: () => void;
 }
 
@@ -40,7 +33,7 @@ const ROL_BADGE: Record<NonNullable<UserProfile['role']>, { label: string; bg: s
   renter: { label: 'Arrendatario', bg: 'bg-[#EEF1FD]', text: 'text-[#2B44C7]' },
 };
 
-export default function ProfilePage({ user, machines, onUserChange, addToast, onNavigatePublish, onLogout }: ProfilePageProps) {
+export default function ProfilePage({ user, onUserChange, addToast, onLogout }: ProfilePageProps) {
   const [nombre, setNombre] = useState(user.name);
   const [telefono, setTelefono] = useState(() => fromFullPhone(user.whatsapp));
   const [savingProfile, setSavingProfile] = useState(false);
@@ -61,23 +54,6 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
   const [opCertificaciones, setOpCertificaciones] = useState('');
   const [savingOperador, setSavingOperador] = useState(false);
 
-  const [misAlquileres, setMisAlquileres] = useState<AlquilerApi[]>([]);
-  const [alquileresLoading, setAlquileresLoading] = useState(false);
-
-  const [misCotizaciones, setMisCotizaciones] = useState<CotizacionApi[]>([]);
-  const [cotizacionesLoading, setCotizacionesLoading] = useState(false);
-  const [cotizacionActionId, setCotizacionActionId] = useState<number | null>(null);
-
-  const ownerMachines = user.id ? machines.filter((m) => m.ownerId === user.id) : [];
-
-  const cargarMisCotizaciones = () => {
-    setCotizacionesLoading(true);
-    listarCotizacionesEnviadas()
-      .then(setMisCotizaciones)
-      .catch(() => setMisCotizaciones([]))
-      .finally(() => setCotizacionesLoading(false));
-  };
-
   useEffect(() => {
     if (user.role === 'operator') {
       listarOperadores()
@@ -92,53 +68,8 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
         })
         .catch(() => {});
     }
-    if (user.role === 'renter') {
-      setAlquileresLoading(true);
-      listarMisAlquileres()
-        .then(setMisAlquileres)
-        .catch(() => setMisAlquileres([]))
-        .finally(() => setAlquileresLoading(false));
-      cargarMisCotizaciones();
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id, user.role]);
-
-  const handleAceptarContraoferta = async (id: number) => {
-    setCotizacionActionId(id);
-    try {
-      await aceptarCotizacion(id);
-      addToast('¡Alquiler confirmado!', 'success');
-      cargarMisCotizaciones();
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'No se pudo aceptar la contraoferta';
-      addToast(message, 'error');
-    } finally {
-      setCotizacionActionId(null);
-    }
-  };
-
-  const handleCancelarCotizacion = async (id: number) => {
-    setCotizacionActionId(id);
-    try {
-      await cancelarCotizacion(id);
-      addToast('Cotización cancelada', 'info');
-      cargarMisCotizaciones();
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'No se pudo cancelar la cotización';
-      addToast(message, 'error');
-    } finally {
-      setCotizacionActionId(null);
-    }
-  };
-
-  const ESTADO_COTIZACION_LABEL: Record<CotizacionApi['estado'], string> = {
-    pendiente: 'Pendiente',
-    contraoferta: 'Contraoferta recibida',
-    aceptada: 'Aceptada',
-    rechazada: 'Rechazada',
-    cancelada: 'Cancelada',
-    expirada: 'Expirada',
-  };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -378,60 +309,6 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
         </div>
       </section>
 
-      {/* OWNER SECTION */}
-      {user.role === 'owner' && (
-        <section className="bg-white border border-[#E2E2DE] p-6 mb-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[14px] font-bold text-[#0F0F0F]">Mis máquinas</h2>
-            <button
-              onClick={onNavigatePublish}
-              className="bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] text-[11px] font-bold uppercase px-4 py-2 transition-colors cursor-pointer"
-            >
-              Publicar nueva máquina
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <div className="border border-[#E2E2DE] p-3 text-center">
-              <span className="block text-xl font-extrabold text-[#0F0F0F]">{ownerMachines.length}</span>
-              <span className="text-[10px] text-[#717171] uppercase">Publicadas</span>
-            </div>
-            <div className="border border-[#E2E2DE] p-3 text-center">
-              <span className="block text-xl font-extrabold text-[#16793A]">
-                {ownerMachines.filter((m) => m.status === 'available').length}
-              </span>
-              <span className="text-[10px] text-[#717171] uppercase">Disponibles</span>
-            </div>
-            <div className="border border-[#E2E2DE] p-3 text-center">
-              <span className="block text-xl font-extrabold text-[#C88010]">
-                {ownerMachines.filter((m) => m.status === 'rented').length}
-              </span>
-              <span className="text-[10px] text-[#717171] uppercase">Alquiladas</span>
-            </div>
-          </div>
-
-          {ownerMachines.length === 0 ? (
-            <p className="text-[13px] text-[#717171]">Todavía no has publicado ninguna máquina.</p>
-          ) : (
-            <div className="space-y-2">
-              {ownerMachines.map((m) => (
-                <div key={m.id} className="flex items-center justify-between border border-[#E2E2DE] p-3">
-                  <div>
-                    <p className="text-[13px] font-bold text-[#0F0F0F]">{m.name}</p>
-                    <p className="text-[11px] text-[#717171] font-mono-imaq">${formatPrice(m.price)}/{m.priceUnit}</p>
-                  </div>
-                  <span className={`text-[9px] font-bold uppercase px-2 py-1 ${
-                    m.status === 'available' ? 'bg-[#E8F5ED] text-[#16793A]' : m.status === 'rented' ? 'bg-[#FEF2F2] text-[#991B1B]' : 'bg-[#FFF9E6] text-[#C88010]'
-                  }`}>
-                    {m.status === 'available' ? 'DISPONIBLE' : m.status === 'rented' ? 'ALQUILADA' : 'MANTENIMIENTO'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
       {/* OPERATOR SECTION */}
       {user.role === 'operator' && (
         <section className="bg-white border border-[#E2E2DE] p-6 mb-6">
@@ -481,128 +358,6 @@ export default function ProfilePage({ user, machines, onUserChange, addToast, on
             <span className="ml-3 inline-flex items-center gap-1 text-[11px] font-bold text-[#16793A]">
               <Check size={13} /> Perfil verificado
             </span>
-          )}
-        </section>
-      )}
-
-      {/* RENTER SECTION */}
-      {user.role === 'renter' && (
-        <section className="bg-white border border-[#E2E2DE] p-6 mb-6">
-          <h2 className="text-[14px] font-bold text-[#0F0F0F] mb-5">Historial de alquileres</h2>
-          {alquileresLoading ? (
-            <div className="space-y-2">
-              {[0, 1].map((i) => (
-                <div key={i} className="h-12 bg-[#F5F4F0] animate-pulse" />
-              ))}
-            </div>
-          ) : misAlquileres.length === 0 ? (
-            <p className="text-[13px] text-[#717171]">Aún no tienes alquileres registrados.</p>
-          ) : (
-            <div className="space-y-2">
-              {misAlquileres.map((alq) => {
-                const maquina = machines.find((m) => Number(m.id) === alq.maquina_id);
-                return (
-                  <div key={alq.id} className="flex items-center justify-between border border-[#E2E2DE] p-3 gap-3 flex-wrap">
-                    <div>
-                      <p className="text-[13px] font-bold text-[#0F0F0F]">{maquina?.name || `Máquina #${alq.maquina_id}`}</p>
-                      <p className="text-[11px] text-[#717171]">{alq.fecha_inicio} a {alq.fecha_fin} · ${formatPrice(alq.costo_total ?? alq.precio_acordado)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">{alq.estado}</span>
-                      {alq.estado === 'finalizado' && (
-                        <button
-                          onClick={() => addToast('Abre el detalle de la máquina para calificarla desde el catálogo.', 'info')}
-                          className="text-[10px] font-bold uppercase text-[#2B44C7] hover:underline"
-                        >
-                          Calificar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* MIS COTIZACIONES ENVIADAS */}
-      {user.role === 'renter' && (
-        <section className="bg-white border border-[#E2E2DE] p-6 mb-6">
-          <h2 className="text-[14px] font-bold text-[#0F0F0F] mb-5">Mis cotizaciones enviadas</h2>
-          {cotizacionesLoading ? (
-            <div className="space-y-2">
-              {[0, 1].map((i) => (
-                <div key={i} className="h-16 bg-[#F5F4F0] animate-pulse" />
-              ))}
-            </div>
-          ) : misCotizaciones.length === 0 ? (
-            <p className="text-[13px] text-[#717171]">Aún no has enviado ninguna cotización.</p>
-          ) : (
-            <div className="space-y-2">
-              {misCotizaciones.map((cot) => {
-                const maquina = machines.find((m) => Number(m.id) === cot.maquina_id);
-                const esContraoferta = cot.estado === 'contraoferta';
-                return (
-                  <div key={cot.id} className="border border-[#E2E2DE] p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#0F0F0F]">{maquina?.name || `Máquina #${cot.maquina_id}`}</p>
-                        <p className="text-[11px] text-[#717171]">
-                          {cot.fecha_inicio} a {cot.fecha_fin} · ${formatPrice(cot.precio_propuesto)} propuesto
-                        </p>
-                      </div>
-                      <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">
-                        {ESTADO_COTIZACION_LABEL[cot.estado]}
-                      </span>
-                    </div>
-
-                    {esContraoferta && (
-                      <div className="bg-[#FFF9E6] border border-[#C88010]/30 p-3 space-y-2">
-                        <p className="text-[12px] text-[#0F0F0F]">
-                          Contraoferta: <strong>{cot.fecha_inicio_contraoferta} a {cot.fecha_fin_contraoferta}</strong> · $
-                          {formatPrice(cot.precio_contraoferta ?? 0)}
-                          {cot.notas_contraoferta ? ` — "${cot.notas_contraoferta}"` : ''}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleAceptarContraoferta(cot.id)}
-                            disabled={cotizacionActionId === cot.id}
-                            className="bg-[#16793A] hover:bg-[#115C2C] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
-                          >
-                            Aceptar
-                          </button>
-                          <button
-                            onClick={() => handleCancelarCotizacion(cot.id)}
-                            disabled={cotizacionActionId === cot.id}
-                            className="border border-[#991B1B] text-[#991B1B] hover:bg-[#FEF2F2] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {cot.estado === 'pendiente' && (
-                      <button
-                        onClick={() => handleCancelarCotizacion(cot.id)}
-                        disabled={cotizacionActionId === cot.id}
-                        className="text-[10px] font-bold uppercase text-[#991B1B] hover:underline disabled:opacity-60"
-                      >
-                        Cancelar cotización
-                      </button>
-                    )}
-
-                    {cot.estado === 'aceptada' && (
-                      <p className="text-[12px] text-[#16793A] font-semibold">¡Alquiler confirmado!</p>
-                    )}
-                    {cot.estado === 'rechazada' && cot.motivo_rechazo && (
-                      <p className="text-[11px] text-[#717171]">Motivo: {cot.motivo_rechazo}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           )}
         </section>
       )}

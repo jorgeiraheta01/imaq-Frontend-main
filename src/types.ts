@@ -328,6 +328,8 @@ export interface CotizacionApi {
   motivo_rechazo: string | null;
   alquiler_id: number | null;
   visto: boolean;
+  visto_propietario: boolean;
+  visto_arrendatario: boolean;
   fecha_creacion: string;
   fecha_respuesta: string | null;
   fecha_expiracion: string | null;
@@ -350,8 +352,8 @@ export interface CotizacionRechazarApi {
 
 export interface CotizacionContraofertaApi {
   precio_contraoferta: number;
-  fecha_inicio_contraoferta: string;
-  fecha_fin_contraoferta: string;
+  fecha_inicio_contraoferta?: string | null;
+  fecha_fin_contraoferta?: string | null;
   notas_contraoferta?: string | null;
 }
 
@@ -371,6 +373,18 @@ export interface DocumentoVerificacionCreateApi {
   usuario_id: number;
   tipo: TipoDocumento;
   url_documento: string;
+}
+
+export interface BloqueDisponibilidadApi {
+  fecha_inicio: string;
+  fecha_fin: string;
+  motivo: string;
+}
+
+export interface ResumenNoVistasApi {
+  recibidas_pendientes: number;
+  respuestas_nuevas: number;
+  total: number;
 }
 
 export interface ApiErrorBody {
