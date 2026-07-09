@@ -13,6 +13,7 @@ import {
   MapPin,
   User,
   Calendar,
+  CalendarX,
   ArrowRight,
   X,
   ChevronDown,
@@ -102,6 +103,18 @@ function formatFechaCorta(isoDate: string): string {
   const [year, month, day] = isoDate.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('es-SV', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Formats a blocked date range compactly, e.g. "12–18 jul" or "28 jul – 3 ago". */
+function formatRangoCorto(inicioIso: string, finIso: string): string {
+  const [iy, im, id] = inicioIso.split('-').map(Number);
+  const [fy, fm, fd] = finIso.split('-').map(Number);
+  const mesInicio = new Date(iy, im - 1, id).toLocaleDateString('es-SV', { month: 'short' }).replace('.', '');
+  const mesFin = new Date(fy, fm - 1, fd).toLocaleDateString('es-SV', { month: 'short' }).replace('.', '');
+  if (iy === fy && im === fm) {
+    return `${id}–${fd} ${mesInicio}`;
+  }
+  return `${id} ${mesInicio} – ${fd} ${mesFin}`;
 }
 
 export default function App() {
@@ -3363,58 +3376,21 @@ export default function App() {
                 )}
               </div>
 
-              {/* Mini-calendar: disponibilidad */}
-              {machineDisponibilidad.length > 0 && (() => {
-                const hoy = new Date();
-                const mesInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-                const meses = [0, 1].map((offset) => {
-                  const m = new Date(mesInicio.getFullYear(), mesInicio.getMonth() + offset, 1);
-                  const diasEnMes = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
-                  const primerDia = m.getDay();
-                  const dias: (number | null)[] = Array.from({ length: primerDia }, () => null);
-                  for (let d = 1; d <= diasEnMes; d++) dias.push(d);
-                  const nombre = m.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' });
-                  return { nombre, dias, year: m.getFullYear(), month: m.getMonth() };
-                });
-                const esBloqueado = (year: number, month: number, day: number) => {
-                  const fecha = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  return machineDisponibilidad.some((b) => fecha >= b.fecha_inicio && fecha <= b.fecha_fin);
-                };
-                return (
-                  <div className="border border-[#E2E2DE] p-3">
-                    <p className="text-[10px] font-bold uppercase text-[#717171] mb-2">Disponibilidad</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {meses.map((mes) => (
-                        <div key={mes.nombre}>
-                          <p className="text-[11px] font-bold text-[#0F0F0F] mb-1 capitalize">{mes.nombre}</p>
-                          <div className="grid grid-cols-7 gap-px text-center">
-                            {['D','L','M','M','J','V','S'].map((d, i) => (
-                              <span key={i} className="text-[8px] font-bold text-[#717171] py-0.5">{d}</span>
-                            ))}
-                            {mes.dias.map((day, i) => {
-                              if (day === null) return <span key={`e${i}`} />;
-                              const bloq = esBloqueado(mes.year, mes.month, day);
-                              return (
-                                <span
-                                  key={day}
-                                  className={`text-[10px] py-0.5 ${bloq ? 'bg-[#FEF2F2] text-[#991B1B] font-bold line-through' : 'text-[#3A3A3A]'}`}
-                                  title={bloq ? 'Reservado' : 'Disponible'}
-                                >
-                                  {day}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-3 mt-2 text-[9px] text-[#717171]">
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-[#FEF2F2] border border-[#991B1B]/30" /> Reservado</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-white border border-[#E2E2DE]" /> Disponible</span>
-                    </div>
-                  </div>
-                );
-              })()}
+              {/* Disponibilidad: lista compacta de rangos reservados */}
+              {machineDisponibilidad.length > 0 && (
+                <div className="flex items-start gap-2 border border-[#FCE2E2] bg-[#FEF7F7] px-3 py-2">
+                  <CalendarX size={13} className="text-[#991B1B] shrink-0 mt-[1px]" />
+                  <p className="text-[11px] text-[#7A1F1F] leading-relaxed">
+                    <span className="font-bold uppercase tracking-wide text-[10px]">No disponible:</span>{' '}
+                    {machineDisponibilidad.map((b, i) => (
+                      <span key={i}>
+                        {formatRangoCorto(b.fecha_inicio, b.fecha_fin)}
+                        {i < machineDisponibilidad.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+              )}
 
               {/* Primary CTA: Cotizar */}
               {!cotizacionEnviada && (
