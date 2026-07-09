@@ -164,6 +164,9 @@ export default function App() {
   const [isCotizarFormOpen, setIsCotizarFormOpen] = useState(false);
   const [cotizarFechaInicio, setCotizarFechaInicio] = useState('');
   const [cotizarFechaFin, setCotizarFechaFin] = useState('');
+  // El calendario se colapsa solo al completar un rango de fechas (deja ver precio/notas
+  // sin scroll); "Cambiar fechas" lo vuelve a abrir sin perder lo ya escrito.
+  const [cotizarCalendarioAbierto, setCotizarCalendarioAbierto] = useState(true);
   const [cotizarRangeError, setCotizarRangeError] = useState('');
   const [cotizarPrecio, setCotizarPrecio] = useState('');
   const [cotizarNotas, setCotizarNotas] = useState('');
@@ -596,6 +599,7 @@ export default function App() {
     setIsCotizarFormOpen(false);
     setCotizarFechaInicio('');
     setCotizarFechaFin('');
+    setCotizarCalendarioAbierto(true);
     setCotizarRangeError('');
     setCotizarPrecio('');
     setCotizarNotas('');
@@ -923,6 +927,12 @@ export default function App() {
       const solapa = machineDisponibilidad.some((b) => inicio <= b.fecha_fin && fin >= b.fecha_inicio);
       if (solapa) {
         setCotizarRangeError('Estas fechas ya no están disponibles.');
+      } else if (inicio !== fin) {
+        // react-day-picker en modo "range" reporta {from: d, to: d} con el primer clic
+        // (rango de un solo día); solo colapsamos una vez hay un segundo clic que
+        // extiende el rango a más de un día, si no el usuario nunca podría dar el
+        // segundo clic para completar el rango.
+        setCotizarCalendarioAbierto(false);
       }
     }
   };
@@ -3494,18 +3504,34 @@ export default function App() {
               {/* Calendario + formulario de cotizar */}
               {isCotizarFormOpen && !cotizacionEnviada && (
                 <form onSubmit={handleSubmitCotizacion} className="border-t border-[#E2E2DE] pt-3 space-y-2">
-                  <div
-                    className="flex justify-center text-[13px] [--rdp-accent-color:#2B44C7] [--rdp-accent-background-color:#EEF1FC] [--rdp-day-width:28px] [--rdp-day-height:28px] [--rdp-day_button-width:26px] [--rdp-day_button-height:26px] [--rdp-nav-height:2rem] [--rdp-weekday-padding:0.15rem_0rem]"
-                  >
-                    <DayPicker
-                      mode="range"
-                      locale={es}
-                      selected={{ from: cotizarFechaInicio ? parseISO(cotizarFechaInicio) : undefined, to: cotizarFechaFin ? parseISO(cotizarFechaFin) : undefined }}
-                      onSelect={handleSeleccionarRango}
-                      disabled={[{ before: hoy }, ...rangosBloqueados]}
-                      numberOfMonths={1}
-                    />
-                  </div>
+                  {cotizarCalendarioAbierto || !cotizarFechaInicio || !cotizarFechaFin ? (
+                    <div
+                      className="flex justify-center text-[13px] [--rdp-accent-color:#2B44C7] [--rdp-accent-background-color:#EEF1FC] [--rdp-day-width:28px] [--rdp-day-height:28px] [--rdp-day_button-width:26px] [--rdp-day_button-height:26px] [--rdp-nav-height:2rem] [--rdp-weekday-padding:0.15rem_0rem]"
+                    >
+                      <DayPicker
+                        mode="range"
+                        locale={es}
+                        selected={{ from: cotizarFechaInicio ? parseISO(cotizarFechaInicio) : undefined, to: cotizarFechaFin ? parseISO(cotizarFechaFin) : undefined }}
+                        onSelect={handleSeleccionarRango}
+                        disabled={[{ before: hoy }, ...rangosBloqueados]}
+                        numberOfMonths={1}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-white border border-[#E2E2DE] px-3 py-2.5">
+                      <p className="text-[12px] font-medium text-[#0F0F0F] flex items-center gap-1.5">
+                        <Calendar size={13} className="text-[#717171]" />
+                        {formatRangoEs(cotizarFechaInicio, cotizarFechaFin)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setCotizarCalendarioAbierto(true)}
+                        className="text-[11px] text-[#2B44C7] font-bold hover:underline cursor-pointer shrink-0"
+                      >
+                        Cambiar fechas
+                      </button>
+                    </div>
+                  )}
                   {cotizarRangeError && (
                     <p className="text-[11px] text-[#991B1B] font-bold text-center">{cotizarRangeError}</p>
                   )}
@@ -3586,7 +3612,7 @@ export default function App() {
                   onClick={handleAbrirFormularioCotizar}
                   className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <Send size={13} /> {isCotizarFormOpen ? 'Ocultar calendario' : 'Cotizar esta máquina'}
+                  <Send size={13} /> {isCotizarFormOpen ? 'Ocultar formulario' : 'Cotizar esta máquina'}
                 </button>
               )}
               <button
