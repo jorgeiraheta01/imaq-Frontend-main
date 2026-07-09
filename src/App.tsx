@@ -3999,7 +3999,8 @@ export default function App() {
                     <input
                       type="password"
                       required
-                      placeholder="Cree una contraseña segura"
+                      minLength={8}
+                      placeholder="Mínimo 8 caracteres"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
                       className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
