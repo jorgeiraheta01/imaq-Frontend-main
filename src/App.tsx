@@ -3312,302 +3312,242 @@ export default function App() {
       {/* ────────────────────────────────────────────────────────────────
           MACHINE DETAIL MODAL
           ──────────────────────────────────────────────────────────────── */}
-      <Modal open={!!selectedMachine} onClose={() => setSelectedMachine(null)} maxWidth="max-w-[860px]">
+      <Modal open={!!selectedMachine} onClose={() => setSelectedMachine(null)} maxWidth="max-w-[600px]">
         {selectedMachine && (
           <>
-            {/* Two-column layout: left = photo + essential info + CTA, right = grid with history/operators/ratings. No internal scroll needed at normal content sizes. */}
-            <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
+            {/* Single compact flow, no width breakpoints relied on — fits without internal scroll
+                regardless of window width. Thumbnail instead of a full banner saves the most height. */}
+            <div className="p-4 space-y-3">
 
-              {/* LEFT column */}
-              <div className="md:w-[280px] md:shrink-0 flex flex-col md:overflow-y-auto md:border-r border-[#E2E2DE]">
-                <div className="h-[120px] w-full relative bg-[#E2E2DE] shrink-0">
-                  <img
-                    src={getImageUrl(selectedMachine.img, 'maquina')}
-                    alt={selectedMachine.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end p-3">
-                    <span className="bg-[#E8F5ED] text-[#16793A] text-[8px] font-bold uppercase tracking-wider px-2 py-1">
-                      {selectedMachine.status === 'available' ? 'DISPONIBLE' : 'CONTRATADO'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setSelectedMachine(null)}
-                    className="absolute top-2 right-2 w-6 h-6 bg-white/90 hover:bg-white flex items-center justify-center text-[#0F0F0F] transition-colors cursor-pointer"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-
-                <div className="p-4 space-y-3">
-                  <div>
-                    <span className="font-mono-imaq text-[9px] text-[#717171] uppercase tracking-[0.04em] mb-0.5 block">
-                      {selectedMachine.cat}
-                    </span>
-                    <h3 className="text-lg font-bold text-[#0F0F0F] tracking-tight leading-tight">
-                      {selectedMachine.name}
-                    </h3>
-                  </div>
-
-                  <div className="space-y-1.5 font-normal text-[12px] text-[#3A3A3A]">
-                    <div className="flex items-center gap-2">
-                      <MapPin size={13} className="text-[#2B44C7] shrink-0" />
-                      <span>{selectedMachine.location}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#C88010] font-bold text-[13px] font-mono-imaq leading-none shrink-0">$</span>
-                      <span className="font-mono-imaq text-[#C88010] font-bold">${formatPrice(selectedMachine.price)}</span>
-                      <span className="text-[#717171]">/ {selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <User size={13} className="text-[#2B44C7] shrink-0" />
-                      <span>{selectedMachine.owner}</span>
-                    </div>
-                  </div>
-
-                  {selectedMachine.description && (
-                    <p className="text-[11px] text-[#717171] leading-relaxed line-clamp-2">
-                      {selectedMachine.description}
-                    </p>
-                  )}
-
-                  {/* Disponibilidad: lista compacta de rangos reservados */}
-                  {machineDisponibilidad.length > 0 && (
-                    <div className="flex items-start gap-1.5 border border-[#FCE2E2] bg-[#FEF7F7] px-2.5 py-1.5">
-                      <CalendarX size={12} className="text-[#991B1B] shrink-0 mt-[1px]" />
-                      <p className="text-[10px] text-[#7A1F1F] leading-relaxed">
-                        <span className="font-bold uppercase tracking-wide">No disponible:</span>{' '}
-                        {machineDisponibilidad.map((b, i) => (
-                          <span key={i}>
-                            {formatRangoCorto(b.fecha_inicio, b.fecha_fin)}
-                            {i < machineDisponibilidad.length - 1 ? ', ' : ''}
-                          </span>
-                        ))}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Primary CTA: Cotizar */}
-                  {!cotizacionEnviada && (
-                    <button
-                      onClick={handleAbrirFormularioCotizar}
-                      className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-3 transition-colors cursor-pointer"
-                    >
-                      Cotizar esta máquina
-                    </button>
-                  )}
-
-                  {/* Secondary: WhatsApp text link */}
-                  <p className="text-center">
-                    <button
-                      onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
-                      className="text-[10px] text-[#717171] hover:text-[#16793A] hover:underline cursor-pointer inline-flex items-center gap-1"
-                    >
-                      <PhoneCall size={10} /> ¿Preguntas antes de cotizar? Escríbele por WhatsApp
-                    </button>
+              {/* Header: thumbnail + name/category + close */}
+              <div className="flex items-start gap-3">
+                <img
+                  src={getImageUrl(selectedMachine.img, 'maquina')}
+                  alt={selectedMachine.name}
+                  className="w-14 h-14 object-cover shrink-0 bg-[#E2E2DE]"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="font-mono-imaq text-[9px] text-[#717171] uppercase tracking-[0.04em] block">
+                    {selectedMachine.cat}
+                  </span>
+                  <h3 className="text-[15px] font-bold text-[#0F0F0F] tracking-tight leading-tight truncate">
+                    {selectedMachine.name}
+                  </h3>
+                  <p className="text-[11px] text-[#3A3A3A] truncate">
+                    {selectedMachine.location} · <span className="font-mono-imaq text-[#C88010] font-bold">${formatPrice(selectedMachine.price)}</span>/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'} · {selectedMachine.owner}
                   </p>
-
-                  {/* Cotizar form */}
-                  {isCotizarFormOpen && !cotizacionEnviada && (
-                    <form onSubmit={handleSubmitCotizacion} className="border border-[#E2E2DE] p-3 space-y-2.5">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Inicio</label>
-                          <input
-                            type="date"
-                            required
-                            min={new Date().toISOString().slice(0, 10)}
-                            value={cotizarFechaInicio}
-                            onChange={(e) => setCotizarFechaInicio(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Fin</label>
-                          <input
-                            type="date"
-                            required
-                            min={cotizarFechaInicio || new Date().toISOString().slice(0, 10)}
-                            value={cotizarFechaFin}
-                            onChange={(e) => setCotizarFechaFin(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (USD)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          required
-                          placeholder="Ej: 90"
-                          value={cotizarPrecio}
-                          onChange={(e) => setCotizarPrecio(e.target.value)}
-                          className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Notas (opcional)</label>
-                        <textarea
-                          rows={2}
-                          value={cotizarNotas}
-                          onChange={(e) => setCotizarNotas(e.target.value)}
-                          className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={cotizarSubmitting}
-                        className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors disabled:opacity-60 cursor-pointer"
-                      >
-                        {cotizarSubmitting ? 'Enviando…' : 'Enviar cotización'}
-                      </button>
-                    </form>
-                  )}
-
-                  {/* Success state after sending a cotización */}
-                  {cotizacionEnviada && (
-                    <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-3 space-y-2.5">
-                      <p className="text-[12px] text-[#16793A] leading-relaxed">
-                        ¡Cotización enviada! {selectedMachine.owner} la verá en su panel.
-                      </p>
-                      <button
-                        onClick={() =>
-                          handleAvisarWhatsApp(
-                            selectedMachine.telefonoContacto,
-                            `Hola ${selectedMachine.owner}, te mandé una cotización en iMaq para tu "${selectedMachine.name}" del ${formatFechaCorta(cotizacionEnviada.fecha_inicio)} al ${formatFechaCorta(cotizacionEnviada.fecha_fin)}. Puedes verla en tu panel.`
-                          )
-                        }
-                        className="w-full bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <PhoneCall size={13} /> Avisar por WhatsApp
-                      </button>
-                    </div>
-                  )}
                 </div>
+                <button
+                  onClick={() => setSelectedMachine(null)}
+                  className="w-6 h-6 border border-[#E2E2DE] hover:bg-[#F5F4F0] flex items-center justify-center text-[#717171] transition-colors shrink-0 cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
               </div>
 
-              {/* RIGHT column: secondary info arranged as a grid so it all fits without scrolling */}
-              <div className="flex-1 min-w-0 p-4 md:overflow-y-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {selectedMachine.description && (
+                <p className="text-[11px] text-[#717171] leading-relaxed line-clamp-1">
+                  {selectedMachine.description}
+                </p>
+              )}
 
-                  {/* Historial de alquileres — compact, no timeline dots */}
-                  <div>
-                    <p className="text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2">Historial de alquileres</p>
-                    <div className="space-y-1.5">
-                      {rentalHistoryLoading && (
-                        <p className="text-[11px] text-[#717171] animate-pulse">Cargando…</p>
-                      )}
-
-                      {!rentalHistoryLoading && machineRentalHistory.length === 0 && (
-                        <p className="text-[11px] text-[#717171]">Sin historial aún</p>
-                      )}
-
-                      {!rentalHistoryLoading &&
-                        machineRentalHistory.slice(0, 2).map((alquiler, i) => (
-                          <div key={i} className="flex items-center gap-2 text-[11px]">
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                alquiler.estado === 'activo' ? 'bg-[#2B44C7] animate-pulse' : 'bg-[#16793A]'
-                              }`}
-                            />
-                            <span className="text-[#717171] font-mono-imaq">
-                              {formatFechaCorta(alquiler.fecha_inicio)} – {formatFechaCorta(alquiler.fecha_fin)}
-                            </span>
-                          </div>
-                        ))}
-
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#2B44C7] animate-pulse shrink-0" />
-                        <span className="font-bold text-[#2B44C7]">
-                          {selectedMachine.status === 'available' ? 'Disponible ahora' : 'No disponible ahora'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Operadores disponibles — compact cards */}
-                  <div>
-                    <p className="text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2">Operadores disponibles</p>
-                    <div className="space-y-2">
-                      {operators.slice(0, 2).map((op) => (
-                        <div
-                          key={op.id}
-                          className="flex items-center justify-between border border-[#E2E2DE] p-2 hover:bg-[#F9F9F7] transition-all gap-2"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <img
-                              src={op.img}
-                              alt={op.name}
-                              className="w-7 h-7 rounded-full object-cover shrink-0 bg-[#E2E2DE]"
-                            />
-                            <div className="min-w-0">
-                              <h4 className="text-[11px] font-bold text-[#0F0F0F] truncate">{op.name}</h4>
-                              <p className="text-[9px] text-[#717171] truncate">
-                                {op.tarifaDia ? `$${formatPrice(op.tarifaDia)}/día` : 'Consultar'}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => handleOperatorContact(e, op)}
-                            className="bg-[#2B44C7] hover:bg-[#1B2D6B] text-white text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors cursor-pointer shrink-0"
-                          >
-                            Contratar
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Calificaciones de clientes — compact */}
-                  <div className="sm:col-span-2">
-                    <p className="text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2 flex items-center gap-2">
-                      Calificaciones
-                      {machineRatings.length > 0 && (
-                        <span className="bg-[#F5F4F0] text-[#0F0F0F] text-[9px] font-bold px-1.5 py-0.5 normal-case tracking-normal">
-                          {(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)} ★ ({machineRatings.length})
-                        </span>
-                      )}
-                    </p>
-
-                    {ratingsLoading && (
-                      <p className="text-[11px] text-[#717171]">Cargando…</p>
-                    )}
-
-                    {!ratingsLoading && machineRatings.length === 0 && (
-                      <p className="text-[11px] text-[#717171]">Sin calificaciones aún.</p>
-                    )}
-
-                    {!ratingsLoading && machineRatings.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {machineRatings.slice(0, 2).map((rating) => (
-                          <div key={rating.id} className="border border-[#E2E2DE] p-2">
-                            <div className="flex items-center gap-0.5 mb-1">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                  key={star}
-                                  size={10}
-                                  className={star <= rating.estrellas ? 'fill-[#E8A020] stroke-[#E8A020]' : 'stroke-[#E2E2DE]'}
-                                />
-                              ))}
-                            </div>
-                            {rating.comentario && (
-                              <p className="text-[11px] text-[#3A3A3A] leading-relaxed line-clamp-2">{rating.comentario}</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
+              {/* Disponibilidad: lista compacta de rangos reservados */}
+              {machineDisponibilidad.length > 0 && (
+                <div className="flex items-start gap-1.5 border border-[#FCE2E2] bg-[#FEF7F7] px-2.5 py-1.5">
+                  <CalendarX size={12} className="text-[#991B1B] shrink-0 mt-[1px]" />
+                  <p className="text-[10px] text-[#7A1F1F] leading-relaxed">
+                    <span className="font-bold uppercase tracking-wide">No disponible:</span>{' '}
+                    {machineDisponibilidad.map((b, i) => (
+                      <span key={i}>
+                        {formatRangoCorto(b.fecha_inicio, b.fecha_fin)}
+                        {i < machineDisponibilidad.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </p>
                 </div>
+              )}
+
+              {!cotizacionEnviada && !isCotizarFormOpen && (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleAbrirFormularioCotizar}
+                    className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer"
+                  >
+                    Cotizar esta máquina
+                  </button>
+                  <button
+                    onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
+                    className="text-[10px] text-[#717171] hover:text-[#16793A] hover:underline cursor-pointer inline-flex items-center gap-1 shrink-0"
+                  >
+                    <PhoneCall size={10} /> WhatsApp
+                  </button>
+                </div>
+              )}
+
+              {/* Cotizar form */}
+              {isCotizarFormOpen && !cotizacionEnviada && (
+                <form onSubmit={handleSubmitCotizacion} className="border border-[#E2E2DE] p-3 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Inicio</label>
+                      <input
+                        type="date"
+                        required
+                        min={new Date().toISOString().slice(0, 10)}
+                        value={cotizarFechaInicio}
+                        onChange={(e) => setCotizarFechaInicio(e.target.value)}
+                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Fin</label>
+                      <input
+                        type="date"
+                        required
+                        min={cotizarFechaInicio || new Date().toISOString().slice(0, 10)}
+                        value={cotizarFechaFin}
+                        onChange={(e) => setCotizarFechaFin(e.target.value)}
+                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (USD)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      placeholder="Ej: 90"
+                      value={cotizarPrecio}
+                      onChange={(e) => setCotizarPrecio(e.target.value)}
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Notas (opcional)</label>
+                    <textarea
+                      rows={2}
+                      value={cotizarNotas}
+                      onChange={(e) => setCotizarNotas(e.target.value)}
+                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[11px] font-medium p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={cotizarSubmitting}
+                    className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors disabled:opacity-60 cursor-pointer"
+                  >
+                    {cotizarSubmitting ? 'Enviando…' : 'Enviar cotización'}
+                  </button>
+                </form>
+              )}
+
+              {/* Success state after sending a cotización */}
+              {cotizacionEnviada && (
+                <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-3 space-y-2.5">
+                  <p className="text-[12px] text-[#16793A] leading-relaxed">
+                    ¡Cotización enviada! {selectedMachine.owner} la verá en su panel.
+                  </p>
+                  <button
+                    onClick={() =>
+                      handleAvisarWhatsApp(
+                        selectedMachine.telefonoContacto,
+                        `Hola ${selectedMachine.owner}, te mandé una cotización en iMaq para tu "${selectedMachine.name}" del ${formatFechaCorta(cotizacionEnviada.fecha_inicio)} al ${formatFechaCorta(cotizacionEnviada.fecha_fin)}. Puedes verla en tu panel.`
+                      )
+                    }
+                    className="w-full bg-[#16793A] hover:bg-[#115C2C] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2.5 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <PhoneCall size={13} /> Avisar por WhatsApp
+                  </button>
+                </div>
+              )}
+
+              {/* Secondary info: always a 3-column mini-grid, kept minimal so it never needs its own scroll */}
+              <div className="grid grid-cols-3 gap-2.5 border-t border-[#E2E2DE] pt-3">
+
+                {/* Historial de alquileres */}
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-[#717171] uppercase tracking-wider mb-1.5 truncate">Historial</p>
+                  <div className="space-y-1">
+                    {rentalHistoryLoading && (
+                      <p className="text-[10px] text-[#717171] animate-pulse">…</p>
+                    )}
+                    {!rentalHistoryLoading && machineRentalHistory.length === 0 && (
+                      <p className="text-[10px] text-[#717171]">Sin registros</p>
+                    )}
+                    {!rentalHistoryLoading &&
+                      machineRentalHistory.slice(0, 1).map((alquiler, i) => (
+                        <p key={i} className="text-[10px] text-[#717171] font-mono-imaq truncate">
+                          {formatFechaCorta(alquiler.fecha_inicio)}–{formatFechaCorta(alquiler.fecha_fin)}
+                        </p>
+                      ))}
+                    <p className="text-[10px] font-bold text-[#2B44C7] truncate">
+                      {selectedMachine.status === 'available' ? 'Disponible ahora' : 'No disponible'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Operadores disponibles */}
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-[#717171] uppercase tracking-wider mb-1.5 truncate">Operadores</p>
+                  <div className="space-y-1.5">
+                    {operators.length === 0 && (
+                      <p className="text-[10px] text-[#717171]">Sin operadores</p>
+                    )}
+                    {operators.slice(0, 2).map((op) => (
+                      <button
+                        key={op.id}
+                        onClick={(e) => handleOperatorContact(e, op)}
+                        className="block w-full text-left cursor-pointer group"
+                        title={`Contratar a ${op.name}`}
+                      >
+                        <p className="text-[10px] font-bold text-[#0F0F0F] group-hover:text-[#2B44C7] truncate">{op.name}</p>
+                        <p className="text-[9px] text-[#717171] truncate">
+                          {op.tarifaDia ? `$${formatPrice(op.tarifaDia)}/día` : 'Consultar'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Calificaciones de clientes */}
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-[#717171] uppercase tracking-wider mb-1.5 truncate">
+                    Calificaciones{machineRatings.length > 0 ? ` (${machineRatings.length})` : ''}
+                  </p>
+                  <div className="space-y-1">
+                    {ratingsLoading && <p className="text-[10px] text-[#717171]">…</p>}
+                    {!ratingsLoading && machineRatings.length === 0 && (
+                      <p className="text-[10px] text-[#717171]">Sin calificar</p>
+                    )}
+                    {!ratingsLoading && machineRatings.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={9}
+                              className={
+                                star <= Math.round(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length)
+                                  ? 'fill-[#E8A020] stroke-[#E8A020]'
+                                  : 'stroke-[#E2E2DE]'
+                              }
+                            />
+                          ))}
+                        </div>
+                        {machineRatings[0].comentario && (
+                          <p className="text-[10px] text-[#3A3A3A] leading-snug line-clamp-2">{machineRatings[0].comentario}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
 
             {/* Modal footer closing trigger */}
-            <div className="bg-[#F5F4F0] px-6 py-3 border-t border-[#E2E2DE] flex justify-end shrink-0">
+            <div className="bg-[#F5F4F0] px-4 py-3 border-t border-[#E2E2DE] flex justify-end shrink-0">
               <button
                 onClick={() => setSelectedMachine(null)}
                 className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[11px] font-bold uppercase tracking-widest px-5 py-2 cursor-pointer"
