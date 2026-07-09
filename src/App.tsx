@@ -898,14 +898,16 @@ export default function App() {
   }));
 
   /** Días, presupuesto al precio de lista y validez del precio propuesto para el
-   * formulario de cotizar (mismo criterio que usa el backend al aceptar: dias * precio). */
+   * formulario de cotizar. precio_propuesto es el TOTAL a pagar por el período (no una
+   * tarifa unitaria), así que se valida contra el total al precio de lista, no contra
+   * selectedMachine.price — mismo criterio que usa el backend en POST /cotizaciones. */
   const cotizarDias =
     cotizarFechaInicio && cotizarFechaFin
       ? differenceInDays(parseISO(cotizarFechaFin), parseISO(cotizarFechaInicio))
       : 0;
   const cotizarTotalPresupuesto = cotizarDias * (selectedMachine?.price ?? 0);
   const cotizarPrecioInvalido =
-    !!selectedMachine && cotizarPrecio !== '' && Number(cotizarPrecio) >= selectedMachine.price;
+    cotizarDias > 0 && cotizarPrecio !== '' && Number(cotizarPrecio) >= cotizarTotalPresupuesto;
 
   /** Selección del calendario de rango: valida solapamiento contra lo ya reservado.
    * react-day-picker ya se encarga de que "fin" nunca quede antes de "inicio" (si se
@@ -932,8 +934,8 @@ export default function App() {
       addToast('Completa las fechas y el precio propuesto', 'error');
       return;
     }
-    if (Number(cotizarPrecio) >= selectedMachine.price) {
-      addToast('El precio propuesto debe ser menor al precio de la máquina', 'error');
+    if (Number(cotizarPrecio) >= cotizarTotalPresupuesto) {
+      addToast('El precio propuesto debe ser menor al total al precio de la máquina', 'error');
       return;
     }
     const solapa = machineDisponibilidad.some(
@@ -2939,7 +2941,7 @@ export default function App() {
                             type="number"
                             min={1}
                             required
-                            placeholder="Precio propuesto (USD)"
+                            placeholder="Precio total contraofertado (USD)"
                             value={contraofertaPrecio}
                             onChange={(e) => setContraofertaPrecio(e.target.value)}
                             className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
@@ -3517,21 +3519,21 @@ export default function App() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (cotización)</label>
+                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (total a pagar, USD)</label>
                     <input
                       type="number"
                       min={1}
                       required
-                      placeholder="Ej: 90"
+                      placeholder="Ej: 350"
                       value={cotizarPrecio}
                       onChange={(e) => setCotizarPrecio(e.target.value)}
                       className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
                     {cotizarPrecioInvalido ? (
-                      <p className="text-[11px] text-[#991B1B] font-bold mt-1">El precio propuesto debe ser menor al precio de la máquina.</p>
+                      <p className="text-[11px] text-[#991B1B] font-bold mt-1">El precio propuesto debe ser menor al total al precio de la máquina.</p>
                     ) : (
                       <p className="text-[10px] text-[#717171] mt-1">
-                        Debe ser menor al precio de lista (${formatPrice(selectedMachine.price)}/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}).
+                        Debe ser menor al total al precio de lista (${formatPrice(cotizarTotalPresupuesto)}).
                       </p>
                     )}
                   </div>
