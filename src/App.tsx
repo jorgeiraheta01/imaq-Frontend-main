@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { DayPicker, type DateRange } from 'react-day-picker';
 import 'react-day-picker/style.css';
-import { format, parseISO, isWithinInterval } from 'date-fns';
+import { format, parseISO, isWithinInterval, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   motion,
@@ -897,6 +897,16 @@ export default function App() {
     to: parseISO(b.fecha_fin),
   }));
 
+  /** Días, presupuesto al precio de lista y validez del precio propuesto para el
+   * formulario de cotizar (mismo criterio que usa el backend al aceptar: dias * precio). */
+  const cotizarDias =
+    cotizarFechaInicio && cotizarFechaFin
+      ? differenceInDays(parseISO(cotizarFechaFin), parseISO(cotizarFechaInicio))
+      : 0;
+  const cotizarTotalPresupuesto = cotizarDias * (selectedMachine?.price ?? 0);
+  const cotizarPrecioInvalido =
+    !!selectedMachine && cotizarPrecio !== '' && Number(cotizarPrecio) >= selectedMachine.price;
+
   /** Selección del calendario de rango: valida solapamiento contra lo ya reservado.
    * react-day-picker ya se encarga de que "fin" nunca quede antes de "inicio" (si se
    * elige una fecha anterior al inicio actual, reinicia el rango con esa como nuevo inicio). */
@@ -920,6 +930,10 @@ export default function App() {
     if (!selectedMachine) return;
     if (!cotizarFechaInicio || !cotizarFechaFin || !cotizarPrecio) {
       addToast('Completa las fechas y el precio propuesto', 'error');
+      return;
+    }
+    if (Number(cotizarPrecio) >= selectedMachine.price) {
+      addToast('El precio propuesto debe ser menor al precio de la máquina', 'error');
       return;
     }
     const solapa = machineDisponibilidad.some(
@@ -3493,8 +3507,17 @@ export default function App() {
                   {cotizarRangeError && (
                     <p className="text-[11px] text-[#991B1B] font-bold text-center">{cotizarRangeError}</p>
                   )}
+                  {cotizarFechaInicio && cotizarFechaFin && (
+                    <div className="bg-[#F5F4F0] border border-[#E2E2DE] p-2.5">
+                      <p className="text-[9px] font-bold uppercase text-[#717171] mb-1">Total del presupuesto (precio de lista)</p>
+                      <p className="text-[12px] font-medium text-[#0F0F0F]">
+                        {cotizarDias} día{cotizarDias === 1 ? '' : 's'} × ${formatPrice(selectedMachine.price)}/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'} ={' '}
+                        <span className="font-bold">${formatPrice(cotizarTotalPresupuesto)}</span>
+                      </p>
+                    </div>
+                  )}
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (USD)</label>
+                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (cotización)</label>
                     <input
                       type="number"
                       min={1}
@@ -3504,6 +3527,13 @@ export default function App() {
                       onChange={(e) => setCotizarPrecio(e.target.value)}
                       className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
                     />
+                    {cotizarPrecioInvalido ? (
+                      <p className="text-[11px] text-[#991B1B] font-bold mt-1">El precio propuesto debe ser menor al precio de la máquina.</p>
+                    ) : (
+                      <p className="text-[10px] text-[#717171] mt-1">
+                        Debe ser menor al precio de lista (${formatPrice(selectedMachine.price)}/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}).
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Notas (opcional)</label>
@@ -3516,7 +3546,7 @@ export default function App() {
                   </div>
                   <button
                     type="submit"
-                    disabled={cotizarSubmitting || !!cotizarRangeError || !cotizarFechaInicio || !cotizarFechaFin}
+                    disabled={cotizarSubmitting || !!cotizarRangeError || !cotizarFechaInicio || !cotizarFechaFin || cotizarPrecioInvalido}
                     className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 transition-colors disabled:opacity-60 cursor-pointer"
                   >
                     {cotizarSubmitting ? 'Enviando…' : 'Enviar cotización'}
