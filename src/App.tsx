@@ -122,6 +122,37 @@ function formatRangoEs(inicioIso: string, finIso: string): string {
   return `${diaInicio} de ${mesInicio} al ${diaFin} de ${mesFin}`;
 }
 
+const COTIZACIONES_POR_PAGINA = 10;
+
+/** Estados "abiertos": la negociación sigue viva y alguna de las partes tiene
+ * una acción pendiente (aceptar/contraofertar/rechazar o aceptar/cancelar). */
+const ESTADOS_COTIZACION_ACCIONABLES: EstadoCotizacion[] = ['pendiente', 'contraoferta'];
+
+const ESTADO_COTIZACION_FILTROS: Array<{ value: EstadoCotizacion | 'todas'; label: string }> = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'pendiente', label: 'Pendientes' },
+  { value: 'contraoferta', label: 'Contraoferta' },
+  { value: 'aceptada', label: 'Aceptadas' },
+  { value: 'rechazada', label: 'Rechazadas' },
+  { value: 'cancelada', label: 'Canceladas' },
+  { value: 'expirada', label: 'Expiradas' },
+];
+
+/** Filtra por estado (si se pide) y deja primero las cotizaciones en estados
+ * accionables; dentro de cada grupo, las más recientes primero. */
+function filtrarYOrdenarCotizaciones(
+  lista: CotizacionApi[],
+  filtro: EstadoCotizacion | 'todas'
+): CotizacionApi[] {
+  const filtradas = filtro === 'todas' ? lista : lista.filter((c) => c.estado === filtro);
+  return [...filtradas].sort((a, b) => {
+    const prioridadA = ESTADOS_COTIZACION_ACCIONABLES.includes(a.estado) ? 0 : 1;
+    const prioridadB = ESTADOS_COTIZACION_ACCIONABLES.includes(b.estado) ? 0 : 1;
+    if (prioridadA !== prioridadB) return prioridadA - prioridadB;
+    return new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime();
+  });
+}
+
 export default function App() {
   // Page states: 'home' | 'operators' | 'publish' | 'dashboard'
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -178,6 +209,8 @@ export default function App() {
   // "Cotizaciones recibidas" en el panel del propietario
   const [cotizacionesRecibidas, setCotizacionesRecibidas] = useState<CotizacionApi[]>([]);
   const [cotizacionesRecibidasLoading, setCotizacionesRecibidasLoading] = useState(false);
+  const [recibidasFiltro, setRecibidasFiltro] = useState<EstadoCotizacion | 'todas'>('todas');
+  const [recibidasPagina, setRecibidasPagina] = useState(1);
   const [cotizacionActionId, setCotizacionActionId] = useState<number | null>(null);
   const [contraofertaFormId, setContraofertaFormId] = useState<number | null>(null);
   const [contraofertaPrecio, setContraofertaPrecio] = useState('');
@@ -189,6 +222,8 @@ export default function App() {
   // Renter dashboard: cotizaciones enviadas + alquileres
   const [misCotizacionesEnviadas, setMisCotizacionesEnviadas] = useState<CotizacionApi[]>([]);
   const [cotizacionesEnviadasLoading, setCotizacionesEnviadasLoading] = useState(false);
+  const [enviadasFiltro, setEnviadasFiltro] = useState<EstadoCotizacion | 'todas'>('todas');
+  const [enviadasPagina, setEnviadasPagina] = useState(1);
   const [misAlquileres, setMisAlquileres] = useState<AlquilerApi[]>([]);
   const [alquileresLoading, setAlquileresLoading] = useState(false);
 
@@ -856,12 +891,31 @@ export default function App() {
 
   const ESTADO_COTIZACION_LABEL: Record<EstadoCotizacion, string> = {
     pendiente: 'Pendiente',
-    contraoferta: 'Contraoferta recibida',
+    contraoferta: 'Contraoferta',
     aceptada: 'Aceptada',
     rechazada: 'Rechazada',
     cancelada: 'Cancelada',
     expirada: 'Expirada',
   };
+
+  /** Cotizaciones recibidas (propietario): filtradas, con pendientes/contraoferta
+   * primero, y recortadas a la página actual. */
+  const cotizacionesRecibidasOrdenadas = filtrarYOrdenarCotizaciones(cotizacionesRecibidas, recibidasFiltro);
+  const recibidasTotalPaginas = Math.max(1, Math.ceil(cotizacionesRecibidasOrdenadas.length / COTIZACIONES_POR_PAGINA));
+  const recibidasPaginaActual = Math.min(recibidasPagina, recibidasTotalPaginas);
+  const cotizacionesRecibidasPagina = cotizacionesRecibidasOrdenadas.slice(
+    (recibidasPaginaActual - 1) * COTIZACIONES_POR_PAGINA,
+    recibidasPaginaActual * COTIZACIONES_POR_PAGINA
+  );
+
+  /** Mismo criterio para "Mis cotizaciones enviadas" (arrendatario). */
+  const misCotizacionesEnviadasOrdenadas = filtrarYOrdenarCotizaciones(misCotizacionesEnviadas, enviadasFiltro);
+  const enviadasTotalPaginas = Math.max(1, Math.ceil(misCotizacionesEnviadasOrdenadas.length / COTIZACIONES_POR_PAGINA));
+  const enviadasPaginaActual = Math.min(enviadasPagina, enviadasTotalPaginas);
+  const misCotizacionesEnviadasPagina = misCotizacionesEnviadasOrdenadas.slice(
+    (enviadasPaginaActual - 1) * COTIZACIONES_POR_PAGINA,
+    enviadasPaginaActual * COTIZACIONES_POR_PAGINA
+  );
 
   // Carga datos del dashboard según el rol.
   useEffect(() => {
@@ -2887,6 +2941,24 @@ export default function App() {
               )}
             </div>
 
+            {cotizacionesRecibidas.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-5 pt-4">
+                {ESTADO_COTIZACION_FILTROS.map((op) => (
+                  <button
+                    key={op.value}
+                    onClick={() => { setRecibidasFiltro(op.value); setRecibidasPagina(1); }}
+                    className={`text-[10px] font-bold uppercase px-2.5 py-1 border transition-colors cursor-pointer ${
+                      recibidasFiltro === op.value
+                        ? 'bg-[#2B44C7] border-[#2B44C7] text-white'
+                        : 'bg-white border-[#E2E2DE] text-[#3A3A3A] hover:border-[#2B44C7]'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {cotizacionesRecibidasLoading ? (
               <div className="p-6 space-y-3">
                 {[0, 1].map((i) => (
@@ -2895,9 +2967,11 @@ export default function App() {
               </div>
             ) : cotizacionesRecibidas.length === 0 ? (
               <p className="p-6 text-[13px] text-[#717171]">Aún no has recibido cotizaciones.</p>
+            ) : cotizacionesRecibidasOrdenadas.length === 0 ? (
+              <p className="p-6 text-[13px] text-[#717171]">No hay cotizaciones con este estado.</p>
             ) : (
               <div className="p-5 space-y-3">
-                {cotizacionesRecibidas.map((cot) => {
+                {cotizacionesRecibidasPagina.map((cot) => {
                   const maquina = machines.find((m) => Number(m.id) === cot.maquina_id);
                   const enAccion = cotizacionActionId === cot.id;
                   return (
@@ -2913,7 +2987,7 @@ export default function App() {
                           </p>
                         </div>
                         <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">
-                          {cot.estado}
+                          {ESTADO_COTIZACION_LABEL[cot.estado]}
                         </span>
                       </div>
 
@@ -3021,6 +3095,26 @@ export default function App() {
                 })}
               </div>
             )}
+
+            {recibidasTotalPaginas > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-[#E2E2DE]">
+                <button
+                  onClick={() => setRecibidasPagina((p) => Math.max(1, p - 1))}
+                  disabled={recibidasPaginaActual === 1}
+                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  ← Anterior
+                </button>
+                <span className="text-[11px] text-[#717171]">Página {recibidasPaginaActual} de {recibidasTotalPaginas}</span>
+                <button
+                  onClick={() => setRecibidasPagina((p) => Math.min(recibidasTotalPaginas, p + 1))}
+                  disabled={recibidasPaginaActual === recibidasTotalPaginas}
+                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Owner's machines table */}
@@ -3096,6 +3190,24 @@ export default function App() {
               <h2 className="text-[14px] font-bold text-[#0F0F0F]">Mis cotizaciones enviadas</h2>
             </div>
 
+            {misCotizacionesEnviadas.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-5 pt-4">
+                {ESTADO_COTIZACION_FILTROS.map((op) => (
+                  <button
+                    key={op.value}
+                    onClick={() => { setEnviadasFiltro(op.value); setEnviadasPagina(1); }}
+                    className={`text-[10px] font-bold uppercase px-2.5 py-1 border transition-colors cursor-pointer ${
+                      enviadasFiltro === op.value
+                        ? 'bg-[#2B44C7] border-[#2B44C7] text-white'
+                        : 'bg-white border-[#E2E2DE] text-[#3A3A3A] hover:border-[#2B44C7]'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {cotizacionesEnviadasLoading ? (
               <div className="p-6 space-y-3">
                 {[0, 1].map((i) => (
@@ -3104,9 +3216,11 @@ export default function App() {
               </div>
             ) : misCotizacionesEnviadas.length === 0 ? (
               <p className="p-6 text-[13px] text-[#717171]">Aún no has enviado ninguna cotización.</p>
+            ) : misCotizacionesEnviadasOrdenadas.length === 0 ? (
+              <p className="p-6 text-[13px] text-[#717171]">No hay cotizaciones con este estado.</p>
             ) : (
               <div className="p-5 space-y-3">
-                {misCotizacionesEnviadas.map((cot) => {
+                {misCotizacionesEnviadasPagina.map((cot) => {
                   const maquina = machines.find((m) => Number(m.id) === cot.maquina_id);
                   const esContraoferta = cot.estado === 'contraoferta';
                   const enAccion = cotizacionActionId === cot.id;
@@ -3169,6 +3283,26 @@ export default function App() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {enviadasTotalPaginas > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-[#E2E2DE]">
+                <button
+                  onClick={() => setEnviadasPagina((p) => Math.max(1, p - 1))}
+                  disabled={enviadasPaginaActual === 1}
+                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  ← Anterior
+                </button>
+                <span className="text-[11px] text-[#717171]">Página {enviadasPaginaActual} de {enviadasTotalPaginas}</span>
+                <button
+                  onClick={() => setEnviadasPagina((p) => Math.min(enviadasTotalPaginas, p + 1))}
+                  disabled={enviadasPaginaActual === enviadasTotalPaginas}
+                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Siguiente →
+                </button>
               </div>
             )}
           </div>
