@@ -171,7 +171,6 @@ export default function App() {
   const [cotizarPrecio, setCotizarPrecio] = useState('');
   const [cotizarNotas, setCotizarNotas] = useState('');
   const [cotizarSubmitting, setCotizarSubmitting] = useState(false);
-  const [cotizacionEnviada, setCotizacionEnviada] = useState<CotizacionApi | null>(null);
 
   // Cotizaciones sin ver, para el badge del navbar
   const [cotizacionesNoVistas, setCotizacionesNoVistas] = useState(0);
@@ -603,7 +602,6 @@ export default function App() {
     setCotizarRangeError('');
     setCotizarPrecio('');
     setCotizarNotas('');
-    setCotizacionEnviada(null);
   }, [selectedMachine]);
 
   // Toast logic helper
@@ -957,15 +955,15 @@ export default function App() {
     }
     setCotizarSubmitting(true);
     try {
-      const nueva = await crearCotizacion({
+      await crearCotizacion({
         maquina_id: Number(selectedMachine.id),
         fecha_inicio: cotizarFechaInicio,
         fecha_fin: cotizarFechaFin,
         precio_propuesto: Number(cotizarPrecio),
         notas: cotizarNotas || null,
       });
-      setCotizacionEnviada(nueva);
-      setIsCotizarFormOpen(false);
+      setSelectedMachine(null);
+      navigateTo('dashboard');
       addToast('Cotización enviada', 'success');
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'No se pudo enviar la cotización';
@@ -3502,7 +3500,7 @@ export default function App() {
               </div>
 
               {/* Calendario + formulario de cotizar */}
-              {isCotizarFormOpen && !cotizacionEnviada && (
+              {isCotizarFormOpen && (
                 <form onSubmit={handleSubmitCotizacion} className="border-t border-[#E2E2DE] pt-3 space-y-2">
                   {cotizarCalendarioAbierto || !cotizarFechaInicio || !cotizarFechaFin ? (
                     <div
@@ -3581,48 +3579,25 @@ export default function App() {
                   </button>
                 </form>
               )}
-
-              {/* Estado de éxito tras enviar la cotización */}
-              {cotizacionEnviada && (
-                <div className="border-t border-[#E2E2DE] pt-4">
-                  <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-3">
-                    <p className="text-[12px] text-[#16793A] leading-relaxed">
-                      ¡Cotización enviada! {selectedMachine.owner} la verá en su panel.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Footer: mientras se cotiza, dos acciones (cotizar / cerrar). Una vez enviada
-                la cotización ya no hay nada más que hacer aquí, así que "cerrar" pasa a ser
-                la única acción y se vuelve la principal (ancha, azul, con check) en vez de
-                un botón negro secundario huérfano. */}
-            {cotizacionEnviada ? (
-              <div className="bg-[#F5F4F0] p-4 border-t border-[#E2E2DE] shrink-0">
-                <button
-                  onClick={() => setSelectedMachine(null)}
-                  className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Check size={13} /> Entendido, seguir explorando
-                </button>
-              </div>
-            ) : (
-              <div className="bg-[#F5F4F0] p-4 border-t border-[#E2E2DE] flex flex-col sm:flex-row gap-2 shrink-0">
-                <button
-                  onClick={handleAbrirFormularioCotizar}
-                  className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Send size={13} /> {isCotizarFormOpen ? 'Ocultar formulario' : 'Cotizar esta máquina'}
-                </button>
-                <button
-                  onClick={() => setSelectedMachine(null)}
-                  className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white font-bold text-[11px] uppercase tracking-widest px-5 py-2.5 cursor-pointer"
-                >
-                  Cerrar ventana
-                </button>
-              </div>
-            )}
+            {/* Footer: cotizar (abre/oculta el formulario) y cerrar. Al enviar la cotización
+                con éxito el modal se cierra y navega directo al panel, así que no hace falta
+                un estado de éxito aparte aquí. */}
+            <div className="bg-[#F5F4F0] p-4 border-t border-[#E2E2DE] flex flex-col sm:flex-row gap-2 shrink-0">
+              <button
+                onClick={handleAbrirFormularioCotizar}
+                className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Send size={13} /> {isCotizarFormOpen ? 'Ocultar formulario' : 'Cotizar esta máquina'}
+              </button>
+              <button
+                onClick={() => setSelectedMachine(null)}
+                className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white font-bold text-[11px] uppercase tracking-widest px-5 py-2.5 cursor-pointer"
+              >
+                Cerrar ventana
+              </button>
+            </div>
           </>
           );
         })()}
