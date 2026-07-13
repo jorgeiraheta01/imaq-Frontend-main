@@ -122,6 +122,15 @@ function formatRangoEs(inicioIso: string, finIso: string): string {
   return `${diaInicio} de ${mesInicio} al ${diaFin} de ${mesFin}`;
 }
 
+/**
+ * Una cotización solo se puede cancelar con 48h o más de anticipación a la fecha de inicio.
+ * `fecha_inicio` no incluye hora (solo Date), así que la ventana real equivale a "2+ días" —
+ * mismo criterio que se refuerza en el backend (cancelar_cotizacion).
+ */
+function puedeCancelarCotizacion(fechaInicioIso: string): boolean {
+  return differenceInDays(parseISO(fechaInicioIso), new Date()) >= 2;
+}
+
 const COTIZACIONES_POR_PAGINA = 10;
 
 /** Estados "abiertos": la negociación sigue viva y alguna de las partes tiene
@@ -752,7 +761,7 @@ export default function App() {
           html: lines.map((l) => `<p style="margin:4px 0;font-size:14px">${l}</p>`).join(''),
           icon: 'info',
           confirmButtonText: 'Ir a Mi Panel',
-          confirmButtonColor: '#2B44C7',
+          confirmButtonColor: '#17181A',
           showCancelButton: true,
           cancelButtonText: 'Cerrar',
         }).then((result) => {
@@ -1358,13 +1367,13 @@ export default function App() {
     : [];
 
   return (
-    <div className="min-h-screen flex flex-col font-sans selection:bg-[#2B44C7] selection:text-white relative">
+    <div className="min-h-screen flex flex-col font-sans selection:bg-[#FFC72C] selection:text-white relative">
       
       {/* ────────────────────────────────────────────────────────────────
           STICKY NAVBAR (Only rendered if NOT on the Publish page)
           ──────────────────────────────────────────────────────────────── */}
       {currentPage !== 'publish' && (
-        <header className="sticky top-0 left-0 w-full bg-white z-[60] border-b border-[#E2E2DE]">
+        <header className="sticky top-0 left-0 w-full bg-white z-[60] border-b border-[#E4E1DA]">
           <div className="max-w-[1140px] mx-auto h-14 px-4 flex items-center justify-between">
             
             {/* Logo */}
@@ -1372,8 +1381,8 @@ export default function App() {
               onClick={() => navigateTo('home')} 
               className="flex items-center space-x-1 cursor-pointer select-none"
             >
-              <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#0F0F0F]">
-                i<span className="text-[#2B44C7]">M</span>aq
+              <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#17181A]">
+                i<span className="text-[#8A6A00]">M</span>aq
               </span>
             </div>
 
@@ -1390,15 +1399,15 @@ export default function App() {
                     onClick={() => navigateTo(link.key as any)}
                     className={`text-[13px] font-medium transition-colors relative h-14 flex items-center ${
                       isActive 
-                        ? 'text-[#2B44C7] font-semibold' 
-                        : 'text-[#717171] hover:text-[#0F0F0F]'
+                        ? 'text-[#8A6A00] font-semibold' 
+                        : 'text-[#6B6F76] hover:text-[#17181A]'
                     }`}
                   >
                     <span>{link.label}</span>
                     {isActive && (
                       <motion.div 
                         layoutId="nav-underline" 
-                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#2B44C7]" 
+                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FFC72C]" 
                       />
                     )}
                   </button>
@@ -1407,7 +1416,7 @@ export default function App() {
               
               <button
                 onClick={scrollToHowItWorks}
-                className="text-[13px] font-medium text-[#717171] hover:text-[#0F0F0F]"
+                className="text-[13px] font-medium text-[#6B6F76] hover:text-[#17181A]"
               >
                 Cómo funciona
               </button>
@@ -1418,7 +1427,7 @@ export default function App() {
               {!loggedInUser && (
                 <button
                   onClick={() => { setAuthTab('login'); setIsAuthModalOpen(true); }}
-                  className="text-[13px] font-semibold text-[#0F0F0F] hover:text-[#2B44C7] px-3 py-1 cursor-pointer transition-colors"
+                  className="text-[13px] font-semibold text-[#17181A] hover:text-[#8A6A00] px-3 py-1 cursor-pointer transition-colors"
                 >
                   Ingresar
                 </button>
@@ -1426,7 +1435,7 @@ export default function App() {
 
               <button
                 onClick={() => navigateTo('publish')}
-                className="bg-[#E8A020] text-[#0F0F0F] font-semibold text-[13px] px-4 py-2 hover:bg-[#C88010] cursor-pointer transition-colors rounded-[6px]"
+                className="bg-[#FFC72C] text-[#17181A] font-semibold text-[13px] px-4 py-2 hover:bg-[#E6B321] cursor-pointer transition-colors rounded-lg"
               >
                 Publicar máquina
               </button>
@@ -1436,22 +1445,22 @@ export default function App() {
                 <div className="relative">
                   <button
                     onClick={() => setIsUserMenuOpen((v) => !v)}
-                    className="flex items-center gap-2 text-[13px] font-semibold text-[#0F0F0F] hover:text-[#2B44C7] cursor-pointer"
+                    className="flex items-center gap-2 text-[13px] font-semibold text-[#17181A] hover:text-[#8A6A00] cursor-pointer"
                   >
                     <span className="relative">
                       {loggedInUser.fotoUrl ? (
                         <img
                           src={getImageUrl(loggedInUser.fotoUrl, 'perfil')}
                           alt={loggedInUser.name}
-                          className="w-6 h-6 rounded-full object-cover border border-[#E2E2DE]"
+                          className="w-6 h-6 rounded-full object-cover border border-[#E4E1DA]"
                         />
                       ) : (
-                        <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
+                        <span className="w-6 h-6 rounded-full bg-[#FFC72C] text-[#17181A] text-[10px] font-bold flex items-center justify-center">
                           {loggedInUser.name.charAt(0).toUpperCase()}
                         </span>
                       )}
                       {cotizacionesNoVistas > 0 && (
-                        <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] rounded-full bg-[#991B1B] border-2 border-white text-white text-[10px] font-bold flex items-center justify-center px-1">
+                        <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] rounded-full bg-[#C0392B] border-2 border-white text-white text-[10px] font-bold flex items-center justify-center px-1">
                           {cotizacionesNoVistas > 9 ? '9+' : cotizacionesNoVistas}
                         </span>
                       )}
@@ -1468,23 +1477,23 @@ export default function App() {
                           initial={{ opacity: 0, y: -6 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -6 }}
-                          className="absolute right-0 top-9 w-48 bg-white border border-[#E2E2DE] shadow-[0_8px_32px_rgba(0,0,0,.12)] z-50"
+                          className="absolute right-0 top-9 w-48 bg-white border border-[#E4E1DA] shadow-[0_8px_32px_rgba(0,0,0,.12)] z-50"
                         >
                           <button
                             onClick={() => { setIsUserMenuOpen(false); navigateTo('profile'); }}
-                            className="w-full text-left text-[13px] font-medium text-[#3A3A3A] hover:bg-[#F5F4F0] px-4 py-2.5 flex items-center gap-2"
+                            className="w-full text-left text-[13px] font-medium text-[#17181A] hover:bg-[#F6F5F2] px-4 py-2.5 flex items-center gap-2"
                           >
                             <UserCircle size={14} /> Mi Perfil
                           </button>
                           <button
                             onClick={goToDashboardOrLogin}
-                            className="w-full text-left text-[13px] font-medium text-[#3A3A3A] hover:bg-[#F5F4F0] px-4 py-2.5 flex items-center gap-2"
+                            className="w-full text-left text-[13px] font-medium text-[#17181A] hover:bg-[#F6F5F2] px-4 py-2.5 flex items-center gap-2"
                           >
                             <LayoutDashboard size={14} /> Mi Panel
                           </button>
                           <button
                             onClick={() => { setIsUserMenuOpen(false); handleLogout(); }}
-                            className="w-full text-left text-[13px] font-medium text-[#991B1B] hover:bg-[#FEF2F2] px-4 py-2.5 flex items-center gap-2 border-t border-[#E2E2DE]"
+                            className="w-full text-left text-[13px] font-medium text-[#C0392B] hover:bg-[#FBEAE7] px-4 py-2.5 flex items-center gap-2 border-t border-[#E4E1DA]"
                           >
                             <X size={14} /> Cerrar Sesión
                           </button>
@@ -1500,7 +1509,7 @@ export default function App() {
             <div className="md:hidden flex items-center">
               <button 
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-                className="text-[#0F0F0F] p-1.5 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                className="text-[#17181A] p-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
               >
                 {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
               </button>
@@ -1515,35 +1524,35 @@ export default function App() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="md:hidden bg-white border-t border-[#E2E2DE] overflow-hidden"
+                className="md:hidden bg-white border-t border-[#E4E1DA] overflow-hidden"
               >
                 <div className="px-4 py-4 space-y-3 flex flex-col">
                   <button 
                     onClick={() => navigateTo('home')}
-                    className={`text-left text-[14px] font-medium py-1.5 ${currentPage === 'home' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                    className={`text-left text-[14px] font-medium py-1.5 ${currentPage === 'home' ? 'text-[#8A6A00]' : 'text-[#17181A]'}`}
                   >
                     Máquinas
                   </button>
                   <button 
                     onClick={() => navigateTo('operators')}
-                    className={`text-left text-[14px] font-medium py-1.5 ${currentPage === 'operators' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                    className={`text-left text-[14px] font-medium py-1.5 ${currentPage === 'operators' ? 'text-[#8A6A00]' : 'text-[#17181A]'}`}
                   >
                     Operadores
                   </button>
                   <button
                     onClick={scrollToHowItWorks}
-                    className="text-left text-[14px] font-medium text-[#3A3A3A] py-1.5"
+                    className="text-left text-[14px] font-medium text-[#17181A] py-1.5"
                   >
                     Cómo funciona
                   </button>
 
                   {loggedInUser ? (
-                    <div className="pt-2 border-t border-[#E2E2DE] space-y-2">
-                      <p className="text-[13px] text-[#2B44C7] font-semibold flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#E4E1DA] space-y-2">
+                      <p className="text-[13px] text-[#8A6A00] font-semibold flex items-center gap-2">
                         {loggedInUser.fotoUrl ? (
                           <img src={getImageUrl(loggedInUser.fotoUrl, 'perfil')} alt={loggedInUser.name} className="w-6 h-6 rounded-full object-cover" />
                         ) : (
-                          <span className="w-6 h-6 rounded-full bg-[#2B44C7] text-white text-[10px] font-bold flex items-center justify-center">
+                          <span className="w-6 h-6 rounded-full bg-[#FFC72C] text-[#17181A] text-[10px] font-bold flex items-center justify-center">
                             {loggedInUser.name.charAt(0).toUpperCase()}
                           </span>
                         )}
@@ -1551,24 +1560,24 @@ export default function App() {
                       </p>
                       <button
                         onClick={() => navigateTo('profile')}
-                        className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'profile' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                        className={`text-left text-[14px] font-medium py-1.5 block ${currentPage === 'profile' ? 'text-[#8A6A00]' : 'text-[#17181A]'}`}
                       >
                         Mi Perfil
                       </button>
                       <button
                         onClick={goToDashboardOrLogin}
-                        className={`text-left text-[14px] font-medium py-1.5 flex items-center gap-1.5 ${currentPage === 'dashboard' ? 'text-[#2B44C7]' : 'text-[#3A3A3A]'}`}
+                        className={`text-left text-[14px] font-medium py-1.5 flex items-center gap-1.5 ${currentPage === 'dashboard' ? 'text-[#8A6A00]' : 'text-[#17181A]'}`}
                       >
                         Mi Panel
                         {cotizacionesNoVistas > 0 && (
-                          <span className="min-w-[18px] h-[18px] rounded-full bg-[#991B1B] text-white text-[10px] font-bold flex items-center justify-center px-1">
+                          <span className="min-w-[18px] h-[18px] rounded-full bg-[#C0392B] text-white text-[10px] font-bold flex items-center justify-center px-1">
                             {cotizacionesNoVistas > 9 ? '9+' : cotizacionesNoVistas}
                           </span>
                         )}
                       </button>
                       <button
                         onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
-                        className="text-left text-[13px] text-[#991B1B] font-medium"
+                        className="text-left text-[13px] text-[#C0392B] font-medium"
                       >
                         Cerrar sesión
                       </button>
@@ -1576,7 +1585,7 @@ export default function App() {
                   ) : (
                     <button 
                       onClick={() => { setIsMobileMenuOpen(false); setAuthTab('login'); setIsAuthModalOpen(true); }}
-                      className="text-left text-[14px] font-medium text-[#3A3A3A] py-1.5"
+                      className="text-left text-[14px] font-medium text-[#17181A] py-1.5"
                     >
                       Ingresar a mi panel
                     </button>
@@ -1585,7 +1594,7 @@ export default function App() {
                   <div className="pt-3">
                     <button 
                       onClick={() => navigateTo('publish')}
-                      className="w-full text-center bg-[#E8A020] text-[#0F0F0F] font-bold text-[13px] py-2.5 rounded-[6px]"
+                      className="w-full text-center bg-[#FFC72C] text-[#17181A] font-bold text-[13px] py-2.5 rounded-lg"
                     >
                       Publicar máquina
                     </button>
@@ -1601,13 +1610,13 @@ export default function App() {
           PAGE 1: HOME PAGE
           ──────────────────────────────────────────────────────────────── */}
       {currentPage === 'home' && (
-        <main className="flex-1 bg-[#F5F4F0]">
-          
+        <main className="flex-1 bg-[#F6F5F2]">
+
           {/* HERO SECTION — 2-column 50/50, max 50vh */}
           <section className="relative h-[50vh] min-h-[420px] max-h-[600px] overflow-hidden grid grid-cols-1 md:grid-cols-2">
 
             {/* Left column — text on the original dark overlay tone */}
-            <div className="relative z-10 flex items-center bg-[#0A0A14] order-2 md:order-1">
+            <div className="relative z-10 flex items-center bg-[#17181A] order-2 md:order-1">
               <div className="max-w-[560px] w-full mx-auto px-6 md:px-10 py-8">
                 <span className="block text-[11px] font-medium tracking-[0.1em] uppercase text-white/55 mb-2">
                   Plataforma líder · El Salvador · Centroamérica
@@ -1615,7 +1624,7 @@ export default function App() {
 
                 <h1 className="text-white text-3xl sm:text-4xl md:text-5xl font-normal leading-tight tracking-[-0.01em]">
                   Alquila maquinaria,<br />
-                  <span className="block italic text-[#E8A020] font-serif-italic text-4xl sm:text-5xl md:text-6xl mt-1">
+                  <span className="block italic text-[#FFC72C] font-serif-italic text-4xl sm:text-5xl md:text-6xl mt-1">
                     opera con confianza.
                   </span>
                 </h1>
@@ -1630,13 +1639,13 @@ export default function App() {
                       const element = document.getElementById('catalog-anchor');
                       element?.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="bg-[#E8A020] text-[#0F0F0F] text-[13px] font-bold px-6 py-3.5 hover:bg-[#C88010] rounded-[6px] transition-colors flex items-center gap-2 cursor-pointer"
+                    className="bg-[#FFC72C] text-[#17181A] text-[13px] font-bold px-6 py-3.5 hover:bg-[#E6B321] rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
                   >
                     Explorar catálogo <ArrowRight size={15} />
                   </button>
                   <button
                     onClick={() => navigateTo('operators')}
-                    className="bg-transparent text-white/85 text-[13px] font-bold px-6 py-3.5 border-[1.5px] border-white/35 hover:bg-white/10 rounded-[6px] transition-colors cursor-pointer"
+                    className="bg-transparent text-white/85 text-[13px] font-bold px-6 py-3.5 border-[1.5px] border-white/35 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                   >
                     Buscar operadores
                   </button>
@@ -1655,73 +1664,73 @@ export default function App() {
           </section>
 
           {/* SERVICES SECTION */}
-          <section id="how-it-works-anchor" className="bg-white border-b border-[#E2E2DE]">
-            <div className="max-w-[1140px] mx-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#E2E2DE]">
-              
+          <section id="how-it-works-anchor" className="bg-white border-b border-[#E4E1DA]">
+            <div className="max-w-[1140px] mx-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#E4E1DA]">
+
               {/* Cell 1 */}
-              <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#F9F9F7] transition-colors group">
+              <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#EFEEEA] transition-colors group">
                 <div>
-                  <div className="w-10 h-10 bg-[#2B44C7] flex items-center justify-center text-white mb-6">
+                  <div className="w-10 h-10 bg-[#FFC72C] rounded-lg flex items-center justify-center text-[#17181A] mb-6">
                     <Wrench size={20} className="stroke-[1.75px]" />
                   </div>
-                  <span className="block text-[10px] font-semibold text-[#2B44C7] tracking-wider uppercase mb-1">
+                  <span className="block text-[10px] font-semibold text-[#8A6A00] tracking-wider uppercase mb-1">
                     SERVICIOS
                   </span>
-                  <h3 className="text-[20px] font-bold text-[#0F0F0F] mb-3">
+                  <h3 className="text-[20px] font-bold text-[#17181A] mb-3">
                     Alquiler de Maquinaria
                   </h3>
-                  <p className="text-[#3A3A3A] text-[13px] leading-relaxed mb-6">
+                  <p className="text-[#6B6F76] text-[13px] leading-relaxed mb-6">
                     Acceda a una flota diversa de excavadoras, retroexcavadoras y grúas de última generación con mantenimiento preventivo riguroso.
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     const el = document.getElementById('catalog-anchor');
                     el?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="text-left text-[#2B44C7] text-[12px] font-semibold hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+                  className="text-left text-[#17181A] text-[12px] font-semibold hover:text-[#8A6A00] hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
                 >
                   Ver inventario →
                 </button>
               </div>
 
               {/* Cell 2 */}
-              <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#F9F9F7] transition-colors group">
+              <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#EFEEEA] transition-colors group">
                 <div>
-                  <div className="w-10 h-10 bg-[#2B44C7] flex items-center justify-center text-white mb-6">
+                  <div className="w-10 h-10 bg-[#FFC72C] rounded-lg flex items-center justify-center text-[#17181A] mb-6">
                     <Users size={20} className="stroke-[1.75px]" />
                   </div>
-                  <span className="block text-[10px] font-semibold text-[#2B44C7] tracking-wider uppercase mb-1">
+                  <span className="block text-[10px] font-semibold text-[#8A6A00] tracking-wider uppercase mb-1">
                     TALENTO
                   </span>
-                  <h3 className="text-[20px] font-bold text-[#0F0F0F] mb-3">
+                  <h3 className="text-[20px] font-bold text-[#17181A] mb-3">
                     Operadores Certificados
                   </h3>
-                  <p className="text-[#3A3A3A] text-[13px] leading-relaxed mb-6">
+                  <p className="text-[#6B6F76] text-[13px] leading-relaxed mb-6">
                     Conectamos sus proyectos con profesionales verificados y capacitados bajo estándares internacionales de seguridad industrial.
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => navigateTo('operators')}
-                  className="text-left text-[#2B44C7] text-[12px] font-semibold hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+                  className="text-left text-[#17181A] text-[12px] font-semibold hover:text-[#8A6A00] hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
                 >
                   Contratar experto →
                 </button>
               </div>
 
               {/* Cell 3 */}
-              <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#F9F9F7] transition-colors group">
+              <div className="p-10 md:py-12 md:px-10 flex flex-col justify-between hover:bg-[#EFEEEA] transition-colors group">
                 <div>
-                  <div className="w-10 h-10 bg-[#2B44C7] flex items-center justify-center text-white mb-6">
+                  <div className="w-10 h-10 bg-[#FFC72C] rounded-lg flex items-center justify-center text-[#17181A] mb-6">
                     <PhoneCall size={20} className="stroke-[1.75px]" />
                   </div>
-                  <span className="block text-[10px] font-semibold text-[#2B44C7] tracking-wider uppercase mb-1">
+                  <span className="block text-[10px] font-semibold text-[#8A6A00] tracking-wider uppercase mb-1">
                     CONTACTO
                   </span>
-                  <h3 className="text-[20px] font-bold text-[#0F0F0F] mb-3">
+                  <h3 className="text-[20px] font-bold text-[#17181A] mb-3">
                     Contacto Directo
                   </h3>
-                  <p className="text-[#3A3A3A] text-[13px] leading-relaxed mb-6">
+                  <p className="text-[#6B6F76] text-[13px] leading-relaxed mb-6">
                     Conecta directo con propietarios vía WhatsApp. Sin intermediarios, sin comisiones en Fase 1.
                   </p>
                 </div>
@@ -1730,7 +1739,7 @@ export default function App() {
                     const el = document.getElementById('catalog-anchor');
                     el?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="text-left text-[#2B44C7] text-[12px] font-semibold hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+                  className="text-left text-[#17181A] text-[12px] font-semibold hover:text-[#8A6A00] hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform"
                 >
                   Contactar ahora →
                 </button>
@@ -1745,17 +1754,17 @@ export default function App() {
             {/* Header row */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
               <div>
-                <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em] mb-1">
+                <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-[0.1em] mb-1">
                   CATÁLOGO DESTACADO
                 </span>
-                <h2 className="text-[#0F0F0F] text-2xl sm:text-3xl font-extrabold tracking-tight">
+                <h2 className="text-[#17181A] text-2xl sm:text-3xl font-extrabold tracking-tight">
                   Disponibilidad Inmediata
                 </h2>
               </div>
               {!machinesLoading && !machinesError && (
                 <button
                   onClick={() => { loadMachines(); loadCatalogMachines(); }}
-                  className="text-[13px] font-semibold text-[#2B44C7] hover:underline text-left self-start sm:self-auto flex items-center gap-1.5"
+                  className="text-[13px] font-semibold text-[#17181A] hover:text-[#8A6A00] hover:underline text-left self-start sm:self-auto flex items-center gap-1.5"
                 >
                   <RefreshCw size={13} /> Actualizar catálogo
                 </button>
@@ -1764,13 +1773,13 @@ export default function App() {
 
             {/* Free-text search */}
             <div className="relative mb-4">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#717171]" />
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6B6F76]" />
               <input
                 type="text"
                 placeholder="Buscar por nombre, descripción, marca, ubicación..."
                 value={searchMachines}
                 onChange={(e) => setSearchMachines(e.target.value)}
-                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
               />
             </div>
 
@@ -1778,10 +1787,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsMachineFiltersOpen((o) => !o)}
-              className="flex items-center gap-2 mb-3 text-[12px] font-bold uppercase tracking-wider text-[#0F0F0F] border border-[#E2E2DE] bg-white px-4 py-2.5 hover:bg-[#F9F9F7] transition-colors cursor-pointer"
+              className="flex items-center gap-2 mb-3 text-[12px] font-bold uppercase tracking-wider text-[#17181A] border border-[#E4E1DA] rounded-lg bg-white px-4 py-2.5 hover:bg-[#EFEEEA] transition-colors cursor-pointer"
             >
               <span>Filtros{activeMachineFilterCount > 0 ? ` (${activeMachineFilterCount})` : ''}</span>
-              <ChevronDown size={14} className={`text-[#717171] transition-transform ${isMachineFiltersOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`text-[#6B6F76] transition-transform ${isMachineFiltersOpen ? 'rotate-180' : ''}`} />
             </button>
 
             <AnimatePresence initial={false}>
@@ -1792,13 +1801,13 @@ export default function App() {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
-            <div className="bg-white border border-[#E2E2DE] p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white border border-[#E4E1DA] rounded-xl p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tipo de máquina</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Tipo de máquina</label>
                 <select
                   value={filterTipo}
                   onChange={(e) => setFilterTipo(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   {machineTypes.map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -1807,11 +1816,11 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Departamento</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Departamento</label>
                 <select
                   value={filterDepartamentoId}
                   onChange={(e) => setFilterDepartamentoId(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   {departments.map((dep) => (
@@ -1821,23 +1830,23 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio máximo (USD)</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Precio máximo (USD)</label>
                 <input
                   type="number"
                   min={0}
                   placeholder="Sin límite"
                   value={filterPrecioMax}
                   onChange={(e) => setFilterPrecioMax(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                 />
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tarifa por</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Tarifa por</label>
                 <select
                   value={filterTipoPrecio}
                   onChange={(e) => setFilterTipoPrecio(e.target.value as 'todos' | 'hora' | 'dia')}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="todos">Hora o día</option>
                   <option value="dia">Por día</option>
@@ -1846,25 +1855,25 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Estado</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Estado</label>
                 <select
                   value={filterEstado}
                   onChange={(e) => setFilterEstado(e.target.value as typeof filterEstado)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   <option value="disponible">Disponible</option>
                   <option value="alquilada">Alquilada</option>
-                  <option value="mantenimiento">Mantenimiento</option>
+                  <option value="mantenimiento">No disponible</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Incluye operador</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Incluye operador</label>
                 <select
                   value={filterIncluyeOperador}
                   onChange={(e) => setFilterIncluyeOperador(e.target.value as typeof filterIncluyeOperador)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   <option value="si">Sí</option>
@@ -1873,11 +1882,11 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Ordenar por</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Ordenar por</label>
                 <select
                   value={filterOrdenMaquinas}
                   onChange={(e) => setFilterOrdenMaquinas(e.target.value as typeof filterOrdenMaquinas)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="ninguno">Relevancia</option>
                   <option value="precio_asc">Precio: menor a mayor</option>
@@ -1890,7 +1899,7 @@ export default function App() {
                 <button
                   onClick={clearMachineFilters}
                   disabled={!machineFiltersActive}
-                  className="w-full text-[11px] font-bold uppercase tracking-wider px-3 py-2.5 border border-[#E2E2DE] text-[#717171] hover:border-[#991B1B] hover:text-[#991B1B] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  className="w-full text-[11px] font-bold uppercase tracking-wider px-3 py-2.5 border border-[#E4E1DA] rounded-lg text-[#6B6F76] hover:border-[#C0392B] hover:text-[#C0392B] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   Limpiar filtros
                 </button>
@@ -1902,9 +1911,9 @@ export default function App() {
 
             {/* Results counter */}
             {!catalogMachinesLoading && !catalogMachinesError && (
-              <p className="text-[12px] text-[#717171] mb-6">
-                Mostrando <strong className="text-[#0F0F0F]">{catalogMachines.length}</strong> de{' '}
-                <strong className="text-[#0F0F0F]">{machines.length}</strong> máquinas
+              <p className="text-[12px] text-[#6B6F76] mb-6">
+                Mostrando <strong className="text-[#17181A]">{catalogMachines.length}</strong> de{' '}
+                <strong className="text-[#17181A]">{machines.length}</strong> máquinas
               </p>
             )}
 
@@ -1912,12 +1921,12 @@ export default function App() {
             {catalogMachinesLoading && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="bg-white border border-[#E2E2DE] overflow-hidden animate-pulse">
-                    <div className="h-[180px] bg-[#E2E2DE]" />
+                  <div key={i} className="bg-white border border-[#E4E1DA] rounded-xl overflow-hidden animate-pulse">
+                    <div className="h-[180px] bg-[#EFEEEA]" />
                     <div className="p-4 space-y-3">
-                      <div className="h-2.5 w-1/3 bg-[#E2E2DE]" />
-                      <div className="h-4 w-2/3 bg-[#E2E2DE]" />
-                      <div className="h-8 w-full bg-[#F5F4F0] border-t border-[#E2E2DE] mt-2" />
+                      <div className="h-2.5 w-1/3 bg-[#EFEEEA]" />
+                      <div className="h-4 w-2/3 bg-[#EFEEEA]" />
+                      <div className="h-8 w-full bg-[#F6F5F2] border-t border-[#E4E1DA] mt-2" />
                     </div>
                   </div>
                 ))}
@@ -1926,13 +1935,13 @@ export default function App() {
 
             {/* ERROR STATE */}
             {!catalogMachinesLoading && catalogMachinesError && (
-              <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E2E2DE] py-16 px-6">
-                <AlertTriangle size={28} className="text-[#991B1B] mb-3" />
-                <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">No se pudo cargar el catálogo</h3>
-                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">{catalogMachinesError}</p>
+              <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E4E1DA] rounded-xl py-16 px-6">
+                <AlertTriangle size={28} className="text-[#C0392B] mb-3" />
+                <h3 className="text-[15px] font-bold text-[#17181A] mb-1">No se pudo cargar el catálogo</h3>
+                <p className="text-[13px] text-[#6B6F76] max-w-[360px] mb-5">{catalogMachinesError}</p>
                 <button
                   onClick={loadCatalogMachines}
-                  className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer flex items-center gap-2"
+                  className="bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 rounded-lg transition-colors cursor-pointer flex items-center gap-2"
                 >
                   <RefreshCw size={14} /> Reintentar
                 </button>
@@ -1941,15 +1950,15 @@ export default function App() {
 
             {/* EMPTY STATE (no machines at all) */}
             {!catalogMachinesLoading && !catalogMachinesError && machines.length === 0 && (
-              <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E2E2DE] py-16 px-6">
-                <Wrench size={28} className="text-[#717171] mb-3" />
-                <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">Aún no hay máquinas disponibles</h3>
-                <p className="text-[13px] text-[#717171] max-w-[360px]">
+              <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E4E1DA] rounded-xl py-16 px-6">
+                <Wrench size={28} className="text-[#6B6F76] mb-3" />
+                <h3 className="text-[15px] font-bold text-[#17181A] mb-1">Aún no hay máquinas disponibles</h3>
+                <p className="text-[13px] text-[#6B6F76] max-w-[360px]">
                   Sé el primero en publicar un equipo y aparecerá aquí de inmediato.
                 </p>
                 <button
                   onClick={() => navigateTo('publish')}
-                  className="mt-5 bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
+                  className="mt-5 bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 rounded-lg transition-colors cursor-pointer"
                 >
                   Publicar máquina
                 </button>
@@ -1958,10 +1967,10 @@ export default function App() {
 
             {/* No results for the active filters */}
             {!catalogMachinesLoading && !catalogMachinesError && machines.length > 0 && catalogMachines.length === 0 && (
-              <div className="text-center bg-white border border-[#E2E2DE] py-12 px-6">
-                <p className="text-[13px] text-[#717171]">
+              <div className="text-center bg-white border border-[#E4E1DA] rounded-xl py-12 px-6">
+                <p className="text-[13px] text-[#6B6F76]">
                   Ningún equipo coincide con los filtros seleccionados.{' '}
-                  <button onClick={clearMachineFilters} className="text-[#2B44C7] font-semibold hover:underline">
+                  <button onClick={clearMachineFilters} className="text-[#17181A] font-semibold hover:text-[#8A6A00] hover:underline">
                     Limpiar filtros
                   </button>
                 </p>
@@ -1977,11 +1986,11 @@ export default function App() {
                   <div
                     key={machine.id}
                     onClick={() => setSelectedMachine(machine)}
-                    className="bg-white border border-[#E2E2DE] overflow-hidden group hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,.08)] transition-all duration-300 flex flex-col justify-between cursor-pointer"
+                    className="bg-white border border-[#E4E1DA] rounded-xl overflow-hidden group hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,.08)] transition-all duration-300 flex flex-col justify-between cursor-pointer"
                   >
 
                     {/* Image space */}
-                    <div className="h-[180px] overflow-hidden relative bg-[#E2E2DE]">
+                    <div className="h-[180px] overflow-hidden relative bg-[#EFEEEA]">
                       <img
                         src={getImageUrl(machine.img, 'maquina')}
                         alt={machine.name}
@@ -1989,22 +1998,22 @@ export default function App() {
                       />
 
                       {/* Status Badges */}
-                      <span className={`absolute top-3 left-3 text-[9px] font-bold uppercase tracking-wider px-2 py-1 ${
+                      <span className={`absolute top-3 left-3 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
                         machine.status === 'available'
-                          ? 'bg-[#E8F5ED] text-[#16793A]'
+                          ? 'bg-[#E7F4EC] text-[#1E7A46]'
                           : machine.status === 'rented'
-                          ? 'bg-[#FEF2F2] text-[#991B1B]'
-                          : 'bg-[#FFF9E6] text-[#C88010]'
+                          ? 'bg-[#FFF3D6] text-[#17181A]'
+                          : 'bg-[#FBF1E1] text-[#B7791F]'
                       }`}>
-                        {machine.status === 'available' ? 'DISPONIBLE' : machine.status === 'rented' ? 'ALQUILADO' : 'MANTENIMIENTO'}
+                        {machine.status === 'available' ? 'DISPONIBLE' : machine.status === 'rented' ? 'ALQUILADO' : 'NO DISPONIBLE'}
                       </span>
 
                       {/* Favorite Button */}
                       <button
                         onClick={(e) => toggleFavorite(e, machine.id)}
-                        className="absolute top-3 right-3 w-7 h-7 bg-white rounded-none flex items-center justify-center text-[#717171] hover:text-[#991B1B] border border-[#E2E2DE] transition-colors"
+                        className="absolute top-3 right-3 w-7 h-7 bg-white rounded-lg flex items-center justify-center text-[#6B6F76] hover:text-[#C0392B] border border-[#E4E1DA] transition-colors"
                       >
-                        <Heart size={14} className={isFavorite ? 'fill-[#991B1B] stroke-[#991B1B]' : 'stroke-current'} />
+                        <Heart size={14} className={isFavorite ? 'fill-[#C0392B] stroke-[#C0392B]' : 'stroke-current'} />
                       </button>
                     </div>
 
@@ -2015,61 +2024,61 @@ export default function App() {
                         {(machine.incluyeOperador || machine.incluyeCombustible === false || machine.marca || machine.anio) && (
                           <div className="flex flex-wrap gap-1.5 mb-3">
                             {machine.incluyeOperador && (
-                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#E8F5ED] text-[#16793A]">Incluye operador</span>
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-[#E7F4EC] text-[#1E7A46]">Incluye operador</span>
                             )}
                             {machine.incluyeCombustible === false && (
-                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#FFF9E6] text-[#C88010]">Sin combustible</span>
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-[#FBF1E1] text-[#B7791F]">Sin combustible</span>
                             )}
                             {machine.marca && (
-                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#F5F4F0] text-[#3A3A3A]">{machine.marca}</span>
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-[#EFEEEA] text-[#17181A]">{machine.marca}</span>
                             )}
                             {machine.anio && (
-                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#F5F4F0] text-[#3A3A3A]">{machine.anio}</span>
+                              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-[#EFEEEA] text-[#17181A]">{machine.anio}</span>
                             )}
                           </div>
                         )}
 
                         {/* Specs row */}
-                        <div className="flex gap-4 mb-3 border-b border-[#F5F4F0] pb-2">
+                        <div className="flex gap-4 mb-3 border-b border-[#F6F5F2] pb-2">
                           <div>
-                            <span className="block text-[9px] uppercase text-[#717171]">Potencia</span>
-                            <span className="text-[12px] font-bold text-[#3A3A3A]">{machine.specs.potencia}</span>
+                            <span className="block text-[9px] uppercase text-[#6B6F76]">Potencia</span>
+                            <span className="text-[12px] font-bold text-[#17181A]">{machine.specs.potencia}</span>
                           </div>
                           <div>
-                            <span className="block text-[9px] uppercase text-[#717171]">
+                            <span className="block text-[9px] uppercase text-[#6B6F76]">
                               {machine.specs.capacidad ? 'Capacidad' : machine.specs.alcance ? 'Alcance' : 'Ancho'}
                             </span>
-                            <span className="text-[12px] font-bold text-[#3A3A3A]">
+                            <span className="text-[12px] font-bold text-[#17181A]">
                               {machine.specs.capacidad || machine.specs.alcance || machine.specs.ancho}
                             </span>
                           </div>
                         </div>
 
                         {/* Model code */}
-                        <span className="block font-mono-imaq text-[10px] text-[#717171] uppercase tracking-[0.04em] mb-0.5">
+                        <span className="block font-mono-imaq text-[10px] text-[#6B6F76] uppercase tracking-[0.04em] mb-0.5">
                           {machine.cat}
                         </span>
 
                         {/* Machine Name */}
-                        <h4 className="text-[15px] font-bold text-[#0F0F0F] tracking-tight group-hover:text-[#2B44C7] transition-colors mb-4">
+                        <h4 className="text-[15px] font-bold text-[#17181A] tracking-tight group-hover:text-[#8A6A00] transition-colors mb-4">
                           {machine.name}
                         </h4>
                       </div>
 
                       {/* Card Footer */}
-                      <div className="flex items-center justify-between border-t border-[#E2E2DE] pt-3 mt-auto">
+                      <div className="flex items-center justify-between border-t border-[#E4E1DA] pt-3 mt-auto">
                         <div>
-                          <span className="block text-[9px] uppercase text-[#717171] tracking-wider leading-none">Tarifa</span>
+                          <span className="block text-[9px] uppercase text-[#6B6F76] tracking-wider leading-none">Tarifa</span>
                           <div className="flex items-baseline mt-0.5">
-                            <span className="font-mono-imaq text-[17px] font-bold text-[#C88010] leading-none">${formatPrice(machine.price)}</span>
-                            <span className="text-[10px] text-[#717171] ml-0.5 font-normal">/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
+                            <span className="font-mono-imaq text-[17px] font-bold text-[#17181A] leading-none">${formatPrice(machine.price)}</span>
+                            <span className="text-[10px] text-[#6B6F76] ml-0.5 font-normal">/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
                           </div>
                         </div>
 
                         {/* Action WhatsApp Button */}
                         <button
                           onClick={(e) => handleWhatsAppContact(e, machine)}
-                          className="w-8 h-8 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+                          className="w-8 h-8 bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] rounded-lg flex items-center justify-center transition-colors shadow-sm cursor-pointer"
                           title="Contactar por WhatsApp"
                         >
                           <Plus size={16} />
@@ -2089,7 +2098,7 @@ export default function App() {
                 <button
                   onClick={() => loadCatalogMachines(true)}
                   disabled={catalogMachinesLoadingMore}
-                  className="bg-white border border-[#E2E2DE] hover:border-[#0F0F0F] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-6 py-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-white border border-[#E4E1DA] rounded-lg hover:border-[#17181A] text-[#17181A] text-[12px] font-bold uppercase tracking-widest px-6 py-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {catalogMachinesLoadingMore ? 'Cargando...' : 'Cargar más máquinas'}
                 </button>
@@ -2105,12 +2114,12 @@ export default function App() {
           PAGE 2: OPERATORS DIRECTORY
           ──────────────────────────────────────────────────────────────── */}
       {currentPage === 'operators' && (
-        <main className="flex-1 bg-[#F5F4F0]">
+        <main className="flex-1 bg-[#F6F5F2]">
           
           {/* OPERATORS COMPACT HEADER (max 80px tall) */}
-          <section className="bg-white border-b border-[#E2E2DE] h-20 flex items-center">
+          <section className="bg-white border-b border-[#E4E1DA] h-20 flex items-center">
             <div className="max-w-[1140px] mx-auto px-4 w-full flex items-center justify-between gap-4">
-              <h1 className="text-[18px] sm:text-[20px] font-extrabold text-[#0F0F0F] tracking-tight">
+              <h1 className="text-[18px] sm:text-[20px] font-extrabold text-[#17181A] tracking-tight">
                 Directorio de Operadores
               </h1>
             </div>
@@ -2121,24 +2130,24 @@ export default function App() {
 
             {/* Free-text search */}
             <div className="relative mb-4">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#717171]" />
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6B6F76]" />
               <input
                 type="text"
                 placeholder="Buscar por nombre o certificaciones..."
                 value={searchOperators}
                 onChange={(e) => setSearchOperators(e.target.value)}
-                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium pl-10 pr-4 py-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
               />
             </div>
 
             {/* Always-visible filter bar */}
-            <div className="bg-white border border-[#E2E2DE] p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="bg-white border border-[#E4E1DA] p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tipo de máquina</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Tipo de máquina</label>
                 <select
                   value={operatorFilterMaquina}
                   onChange={(e) => setOperatorFilterMaquina(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="Todos">Todos</option>
                   {OPERATOR_MACHINE_TYPES.map((t) => (
@@ -2148,11 +2157,11 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Departamento</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Departamento</label>
                 <select
                   value={operatorFilterDepartamentoId}
                   onChange={(e) => setOperatorFilterDepartamentoId(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   {departments.map((dep) => (
@@ -2162,23 +2171,23 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Tarifa máxima (USD/día)</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Tarifa máxima (USD/día)</label>
                 <input
                   type="number"
                   min={0}
                   placeholder="Sin límite"
                   value={operatorFilterTarifaMax}
                   onChange={(e) => setOperatorFilterTarifaMax(e.target.value)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                  className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                 />
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Ordenar por</label>
+                <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Ordenar por</label>
                 <select
                   value={operatorFilterOrden}
                   onChange={(e) => setOperatorFilterOrden(e.target.value as typeof operatorFilterOrden)}
-                  className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                  className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                 >
                   <option value="ninguno">Relevancia</option>
                   <option value="tarifa_asc">Tarifa: menor a mayor</option>
@@ -2188,29 +2197,29 @@ export default function App() {
               </div>
 
               <div className="flex items-end gap-2">
-                <label className="flex items-center gap-2 h-[38px] px-3 border border-[#E2E2DE] flex-1 cursor-pointer">
+                <label className="flex items-center gap-2 h-[38px] px-3 border border-[#E4E1DA] flex-1 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={operatorFilterVerificado}
                     onChange={(e) => setOperatorFilterVerificado(e.target.checked)}
-                    className="w-3.5 h-3.5 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                    className="w-3.5 h-3.5 text-[#FFC72C] focus:ring-0 border-[#E4E1DA]"
                   />
-                  <span className="text-[11px] font-bold text-[#3A3A3A]">Solo verificados</span>
+                  <span className="text-[11px] font-bold text-[#17181A]">Solo verificados</span>
                 </label>
               </div>
             </div>
 
             <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
               {!catalogOperatorsLoading && !catalogOperatorsError && (
-                <p className="text-[12px] text-[#717171]">
-                  Mostrando <strong className="text-[#0F0F0F]">{catalogOperators.length}</strong> de{' '}
-                  <strong className="text-[#0F0F0F]">{operators.length}</strong> operadores
+                <p className="text-[12px] text-[#6B6F76]">
+                  Mostrando <strong className="text-[#17181A]">{catalogOperators.length}</strong> de{' '}
+                  <strong className="text-[#17181A]">{operators.length}</strong> operadores
                 </p>
               )}
               <button
                 onClick={clearOperatorFilters}
                 disabled={!operatorFiltersActive}
-                className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-[#E2E2DE] text-[#717171] hover:border-[#991B1B] hover:text-[#991B1B] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-[#E4E1DA] text-[#6B6F76] hover:border-[#C0392B] hover:text-[#C0392B] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
               >
                 Limpiar filtros
               </button>
@@ -2219,11 +2228,11 @@ export default function App() {
             {catalogOperatorsLoading && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="bg-white border border-[#E2E2DE] overflow-hidden animate-pulse">
-                    <div className="h-[220px] bg-[#E2E2DE]" />
+                  <div key={i} className="bg-white border border-[#E4E1DA] overflow-hidden animate-pulse">
+                    <div className="h-[220px] bg-[#E4E1DA]" />
                     <div className="p-4 space-y-3">
-                      <div className="h-3 w-2/3 bg-[#E2E2DE]" />
-                      <div className="h-8 w-full bg-[#F5F4F0] mt-4" />
+                      <div className="h-3 w-2/3 bg-[#E4E1DA]" />
+                      <div className="h-8 w-full bg-[#F6F5F2] mt-4" />
                     </div>
                   </div>
                 ))}
@@ -2231,13 +2240,13 @@ export default function App() {
             )}
 
             {!catalogOperatorsLoading && catalogOperatorsError && (
-              <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E2E2DE] py-16 px-6 mb-12">
-                <AlertTriangle size={28} className="text-[#991B1B] mb-3" />
-                <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">No se pudo cargar el directorio</h3>
-                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">{catalogOperatorsError}</p>
+              <div className="flex flex-col items-center justify-center text-center bg-white border border-[#E4E1DA] py-16 px-6 mb-12">
+                <AlertTriangle size={28} className="text-[#C0392B] mb-3" />
+                <h3 className="text-[15px] font-bold text-[#17181A] mb-1">No se pudo cargar el directorio</h3>
+                <p className="text-[13px] text-[#6B6F76] max-w-[360px] mb-5">{catalogOperatorsError}</p>
                 <button
                   onClick={loadCatalogOperators}
-                  className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer flex items-center gap-2"
+                  className="bg-[#17181A] hover:bg-[#17181A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer flex items-center gap-2"
                 >
                   <RefreshCw size={14} /> Reintentar
                 </button>
@@ -2245,8 +2254,8 @@ export default function App() {
             )}
 
             {!catalogOperatorsLoading && !catalogOperatorsError && catalogOperators.length === 0 && (
-              <div className="flex flex-col items-center text-center bg-white border border-[#E2E2DE] py-12 px-6 mb-12">
-                <p className="text-[13px] text-[#717171] mb-4">
+              <div className="flex flex-col items-center text-center bg-white border border-[#E4E1DA] py-12 px-6 mb-12">
+                <p className="text-[13px] text-[#6B6F76] mb-4">
                   {operators.length === 0
                     ? 'Aún no hay operadores registrados.'
                     : 'Ningún operador coincide con los filtros seleccionados.'}
@@ -2259,12 +2268,12 @@ export default function App() {
                       setAuthTab('register');
                       setIsAuthModalOpen(true);
                     }}
-                    className="bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
+                    className="bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
                   >
                     Registrarme como operador
                   </button>
                 ) : (
-                  <button onClick={clearOperatorFilters} className="text-[#2B44C7] font-semibold text-[12px] hover:underline">
+                  <button onClick={clearOperatorFilters} className="text-[#17181A] font-semibold text-[12px] hover:text-[#8A6A00] hover:underline">
                     Limpiar filtros
                   </button>
                 )}
@@ -2276,11 +2285,11 @@ export default function App() {
               {catalogOperators.map((operator) => (
                 <div
                   key={operator.id}
-                  className="bg-white border border-[#E2E2DE] overflow-hidden group hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,.08)] transition-all duration-300 flex flex-col justify-between"
+                  className="bg-white border border-[#E4E1DA] rounded-xl overflow-hidden group hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,.08)] transition-all duration-300 flex flex-col justify-between"
                 >
 
                   {/* Photo area */}
-                  <div className="h-[220px] overflow-hidden relative bg-[#E2E2DE]">
+                  <div className="h-[220px] overflow-hidden relative bg-[#E4E1DA]">
                     <img
                       src={operator.img}
                       alt={operator.name}
@@ -2289,7 +2298,7 @@ export default function App() {
 
                     {/* Verified badge */}
                     {operator.verified && (
-                      <span className="absolute top-3 left-3 bg-[#2B44C7] text-white text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 flex items-center gap-1">
+                      <span className="absolute top-3 left-3 bg-[#FFC72C] text-[#17181A] text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 flex items-center gap-1">
                         <Check size={11} className="stroke-[3px]" />
                         ✓ VERIFICADO
                       </span>
@@ -2300,36 +2309,36 @@ export default function App() {
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-start mb-1">
-                        <h3 className="text-[15px] font-bold text-[#0F0F0F] tracking-tight truncate mr-2">
+                        <h3 className="text-[15px] font-bold text-[#17181A] tracking-tight truncate mr-2">
                           {operator.name}
                         </h3>
-                        <div className="flex items-center text-[#E8A020] space-x-0.5 shrink-0">
+                        <div className="flex items-center text-[#FFC72C] space-x-0.5 shrink-0">
                           <span className="text-[13px] font-semibold">★</span>
-                          <span className="text-[12px] font-bold text-[#0F0F0F]">{operator.rating.toFixed(1)}</span>
+                          <span className="text-[12px] font-bold text-[#17181A]">{operator.rating.toFixed(1)}</span>
                         </div>
                       </div>
 
-                      <p className="text-[12px] text-[#717171] mb-3 leading-tight font-medium">
+                      <p className="text-[12px] text-[#6B6F76] mb-3 leading-tight font-medium">
                         {operator.specialty}
                       </p>
 
                       {operator.tarifaDia != null && (
                         <div className="flex flex-wrap gap-1.5 mb-4">
-                          <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#FFF9E6] text-[#C88010]">
+                          <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 bg-[#FBF1E1] text-[#B7791F]">
                             ${operator.tarifaDia}/día
                           </span>
                         </div>
                       )}
 
                       {/* Meta Grid info */}
-                      <div className="grid grid-cols-2 gap-4 border-t border-[#F5F4F0] pt-4 mb-6">
+                      <div className="grid grid-cols-2 gap-4 border-t border-[#F6F5F2] pt-4 mb-6">
                         <div>
-                          <span className="block text-[9px] uppercase text-[#717171] tracking-wider mb-0.5">Experiencia</span>
-                          <span className="block text-[12px] font-bold text-[#3A3A3A]">{operator.exp.toUpperCase()}</span>
+                          <span className="block text-[9px] uppercase text-[#6B6F76] tracking-wider mb-0.5">Experiencia</span>
+                          <span className="block text-[12px] font-bold text-[#17181A]">{operator.exp.toUpperCase()}</span>
                         </div>
                         <div>
-                          <span className="block text-[9px] uppercase text-[#717171] tracking-wider mb-0.5">Ubicación</span>
-                          <span className="block text-[12px] font-bold text-[#3A3A3A]">{operator.loc.toUpperCase()}</span>
+                          <span className="block text-[9px] uppercase text-[#6B6F76] tracking-wider mb-0.5">Ubicación</span>
+                          <span className="block text-[12px] font-bold text-[#17181A]">{operator.loc.toUpperCase()}</span>
                         </div>
                       </div>
                     </div>
@@ -2337,7 +2346,7 @@ export default function App() {
                     {/* Contact Button */}
                     <button
                       onClick={(e) => handleOperatorContact(e, operator)}
-                      className="w-full mt-auto py-2.5 border-[1.5px] border-[#0F0F0F] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-[0.04em] hover:bg-[#0F0F0F] hover:text-white transition-colors uppercase-spacing mb-1 cursor-pointer"
+                      className="w-full mt-auto py-2.5 border-[1.5px] border-[#17181A] text-[#17181A] text-[12px] font-bold uppercase tracking-[0.04em] hover:bg-[#17181A] hover:text-white transition-colors uppercase-spacing mb-1 cursor-pointer"
                     >
                       CONTACTAR
                     </button>
@@ -2354,7 +2363,7 @@ export default function App() {
                 <button
                   onClick={() => loadCatalogOperators(true)}
                   disabled={catalogOperatorsLoadingMore}
-                  className="bg-white border border-[#E2E2DE] hover:border-[#0F0F0F] text-[#0F0F0F] text-[12px] font-bold uppercase tracking-widest px-6 py-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-white border border-[#E4E1DA] hover:border-[#17181A] text-[#17181A] text-[12px] font-bold uppercase tracking-widest px-6 py-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {catalogOperatorsLoadingMore ? 'Cargando...' : 'Cargar más operadores'}
                 </button>
@@ -2364,32 +2373,32 @@ export default function App() {
           </section>
 
           {/* STATS SECTION */}
-          <section className="bg-white border-t border-b border-[#E2E2DE]">
-            <div className="max-w-[1140px] mx-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#E2E2DE]">
+          <section className="bg-white border-t border-b border-[#E4E1DA]">
+            <div className="max-w-[1140px] mx-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#E4E1DA]">
               
               <div className="py-12 px-6 text-center">
-                <span className="block text-4xl sm:text-5xl font-extrabold text-[#2B44C7] font-sans tracking-tight mb-2">
+                <span className="block text-4xl sm:text-5xl font-extrabold text-[#8A6A00] font-sans tracking-tight mb-2">
                   {operadoresCount !== null ? `${Math.max(Math.floor(operadoresCount / 50) * 50, 0)}+` : '—'}
                 </span>
-                <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em]">
+                <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-[0.1em]">
                   OPERADORES REGISTRADOS
                 </span>
               </div>
 
               <div className="py-12 px-6 text-center">
-                <span className="block text-4xl sm:text-5xl font-extrabold text-[#C88010] font-sans tracking-tight mb-2">
+                <span className="block text-4xl sm:text-5xl font-extrabold text-[#8A6A00] font-sans tracking-tight mb-2">
                   98%
                 </span>
-                <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em]">
+                <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-[0.1em]">
                   TASA DE SATISFACCIÓN
                 </span>
               </div>
 
               <div className="py-12 px-6 text-center">
-                <span className="block text-4xl sm:text-5xl font-extrabold text-[#2B44C7] font-sans tracking-tight mb-2">
+                <span className="block text-4xl sm:text-5xl font-extrabold text-[#8A6A00] font-sans tracking-tight mb-2">
                   1.2k
                 </span>
-                <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em]">
+                <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-[0.1em]">
                   PROYECTOS COMPLETADOS
                 </span>
               </div>
@@ -2405,10 +2414,10 @@ export default function App() {
           (Gets its own clean transactional layout instead of default shared nav)
           ──────────────────────────────────────────────────────────────── */}
       {currentPage === 'publish' && (
-        <div className="min-h-screen bg-[#F5F4F0] flex flex-col justify-between">
+        <div className="min-h-screen bg-[#F6F5F2] flex flex-col justify-between">
           
           {/* Form specific header */}
-          <header className="bg-white border-b border-[#E2E2DE] py-4 px-6 md:px-12 sticky top-0 z-[60]">
+          <header className="bg-white border-b border-[#E4E1DA] py-4 px-6 md:px-12 sticky top-0 z-[60]">
             <div className="max-w-[1140px] mx-auto flex items-center justify-between">
               
               {/* Logo */}
@@ -2416,15 +2425,15 @@ export default function App() {
                 onClick={() => navigateTo('home')}
                 className="flex items-center space-x-1 cursor-pointer select-none"
               >
-                <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#0F0F0F]">
-                  i<span className="text-[#2B44C7]">M</span>aq
+                <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#17181A]">
+                  i<span className="text-[#8A6A00]">M</span>aq
                 </span>
               </div>
 
               {/* Close out */}
               <button 
                 onClick={() => navigateTo('home')}
-                className="flex items-center space-x-1 text-[#0F0F0F] hover:text-[#2B44C7] text-[12px] font-bold tracking-widest uppercase transition-colors"
+                className="flex items-center space-x-1 text-[#17181A] hover:text-[#8A6A00] text-[12px] font-bold tracking-widest uppercase transition-colors"
               >
                 <X size={15} />
                 <span>SALIR</span>
@@ -2437,49 +2446,49 @@ export default function App() {
           <main className="flex-1 py-12 px-4 md:px-8 max-w-[1140px] mx-auto w-full flex items-center justify-center">
             
             {/* Split layout styled container with absolute sharp corners */}
-            <div className="bg-white border border-[#E2E2DE] w-full max-w-[900px] grid grid-cols-1 md:grid-cols-12 overflow-hidden shadow-sm">
+            <div className="bg-white border border-[#E4E1DA] w-full max-w-[900px] grid grid-cols-1 md:grid-cols-12 overflow-hidden shadow-sm">
               
               {/* Left Sidebar Info panel */}
-              <aside className="md:col-span-4 bg-[#F9F9F7] border-b md:border-b-0 md:border-r border-[#E2E2DE] p-8 md:p-10 flex flex-col justify-between min-h-[300px] md:min-h-auto">
+              <aside className="md:col-span-4 bg-[#EFEEEA] border-b md:border-b-0 md:border-r border-[#E4E1DA] p-8 md:p-10 flex flex-col justify-between min-h-[300px] md:min-h-auto">
                 <div className="space-y-6">
                   <div>
-                    <h2 className="text-[22px] font-bold text-[#0F0F0F] tracking-[-0.02em] mb-2 leading-tight">
+                    <h2 className="text-[22px] font-bold text-[#17181A] tracking-[-0.02em] mb-2 leading-tight">
                       Publicar equipo
                     </h2>
-                    <p className="text-[#717171] text-[13px] leading-[1.65]">
+                    <p className="text-[#6B6F76] text-[13px] leading-[1.65]">
                       Complete los detalles técnicos y comerciales para listar su maquinaria en el mercado de El Salvador.
                     </p>
                   </div>
 
                   {/* Progressive indicator steps */}
-                  <div className="space-y-4 pt-4 border-t border-[#E2E2DE]">
+                  <div className="space-y-4 pt-4 border-t border-[#E4E1DA]">
                     
                     <div className="flex items-center space-x-3">
-                      <span className={`font-mono-imaq text-[12px] ${publishStep === 1 ? 'text-[#2B44C7] font-bold' : 'text-[#717171]'}`}>
+                      <span className={`font-mono-imaq text-[12px] ${publishStep === 1 ? 'text-[#8A6A00] font-bold' : 'text-[#6B6F76]'}`}>
                         01
                       </span>
-                      {publishStep === 1 && <span className="w-0.5 h-4 bg-[#E8A020]"></span>}
-                      <span className={`text-[12px] font-bold tracking-wider ${publishStep === 1 ? 'text-[#0F0F0F]' : 'text-[#717171]'}`}>
+                      {publishStep === 1 && <span className="w-0.5 h-4 bg-[#FFC72C]"></span>}
+                      <span className={`text-[12px] font-bold tracking-wider ${publishStep === 1 ? 'text-[#17181A]' : 'text-[#6B6F76]'}`}>
                         DETALLES TÉCNICOS
                       </span>
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      <span className={`font-mono-imaq text-[12px] ${publishStep === 2 ? 'text-[#2B44C7] font-bold' : 'text-[#717171]'}`}>
+                      <span className={`font-mono-imaq text-[12px] ${publishStep === 2 ? 'text-[#8A6A00] font-bold' : 'text-[#6B6F76]'}`}>
                         02
                       </span>
-                      {publishStep === 2 && <span className="w-0.5 h-4 bg-[#E8A020]"></span>}
-                      <span className={`text-[12px] font-bold tracking-wider ${publishStep === 2 ? 'text-[#0F0F0F]' : 'text-[#717171]'}`}>
+                      {publishStep === 2 && <span className="w-0.5 h-4 bg-[#FFC72C]"></span>}
+                      <span className={`text-[12px] font-bold tracking-wider ${publishStep === 2 ? 'text-[#17181A]' : 'text-[#6B6F76]'}`}>
                         GALERÍA VISUAL
                       </span>
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      <span className={`font-mono-imaq text-[12px] ${publishStep === 3 ? 'text-[#2B44C7] font-bold' : 'text-[#717171]'}`}>
+                      <span className={`font-mono-imaq text-[12px] ${publishStep === 3 ? 'text-[#8A6A00] font-bold' : 'text-[#6B6F76]'}`}>
                         03
                       </span>
-                      {publishStep === 3 && <span className="w-0.5 h-4 bg-[#E8A020]"></span>}
-                      <span className={`text-[12px] font-bold tracking-wider ${publishStep === 3 ? 'text-[#0F0F0F]' : 'text-[#717171]'}`}>
+                      {publishStep === 3 && <span className="w-0.5 h-4 bg-[#FFC72C]"></span>}
+                      <span className={`text-[12px] font-bold tracking-wider ${publishStep === 3 ? 'text-[#17181A]' : 'text-[#6B6F76]'}`}>
                         UBICACIÓN Y PRECIO
                       </span>
                     </div>
@@ -2487,8 +2496,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="pt-8 border-t border-[#E2E2DE] mt-auto hidden md:block">
-                  <p className="text-[#2B44C7] italic font-serif-italic text-[18px] leading-snug">
+                <div className="pt-8 border-t border-[#E4E1DA] mt-auto hidden md:block">
+                  <p className="text-[#8A6A00] italic font-serif-italic text-[18px] leading-snug">
                     "Precisión en cada metro cúbico."
                   </p>
                 </div>
@@ -2506,19 +2515,19 @@ export default function App() {
                       animate={{ opacity: 1, x: 0 }}
                       className="space-y-5"
                     >
-                      <h3 className="text-[11px] font-bold tracking-widest text-[#2B44C7] uppercase border-b border-[#F5F4F0] pb-2 mb-2">
+                      <h3 className="text-[11px] font-bold tracking-widest text-[#8A6A00] uppercase border-b border-[#F6F5F2] pb-2 mb-2">
                         Paso 1: Detalles técnicos de la maquinaria
                       </h3>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             CATEGORÍA DE MÁQUINA
                           </label>
                           <select 
                             value={formCategory}
                             onChange={(e) => setFormCategory(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none cursor-pointer"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg cursor-pointer"
                           >
                             <option>Excavadora</option>
                             <option>Retroexcavadora</option>
@@ -2531,7 +2540,7 @@ export default function App() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             MARCA / FABRICANTE
                           </label>
                           <input 
@@ -2540,14 +2549,14 @@ export default function App() {
                             placeholder="Ej: Caterpillar, JCB, Komatsu"
                             value={formBrand}
                             onChange={(e) => setFormBrand(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none placeholder-[#B0B0B0]"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg placeholder-[#6B6F76]"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             MODELO
                           </label>
                           <input 
@@ -2556,12 +2565,12 @@ export default function App() {
                             placeholder="Ej: 320D L"
                             value={formModel}
                             onChange={(e) => setFormModel(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             AÑO DE FABRICACIÓN
                           </label>
                           <input 
@@ -2570,14 +2579,14 @@ export default function App() {
                             placeholder="Ej: 2022"
                             value={formYear}
                             onChange={(e) => setFormYear(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             CAPACIDAD
                           </label>
                           <input
@@ -2585,11 +2594,11 @@ export default function App() {
                             placeholder="Ej: 2.6 m3, 1.5 ton"
                             value={formCapacidad}
                             onChange={(e) => setFormCapacidad(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             HORÓMETRO
                           </label>
                           <input
@@ -2597,13 +2606,13 @@ export default function App() {
                             placeholder="Ej: 447 horas o N/A"
                             value={formHorometro}
                             onChange={(e) => setFormHorometro(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                        <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                           DESCRIPCIÓN DE ESTADO Y CAPACIDADES
                         </label>
                         <textarea
@@ -2612,13 +2621,13 @@ export default function App() {
                           placeholder="Describa el mantenimiento reciente, horas de uso, accesorios incluidos y características operativas..."
                           value={formDesc}
                           onChange={(e) => setFormDesc(e.target.value)}
-                          className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none resize-none"
+                          className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg resize-none"
                         />
                       </div>
 
-                      <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-4 flex gap-3">
-                        <Info className="text-[#16793A] shrink-0 mt-0.5" size={16} />
-                        <p className="text-[12px] text-[#16793A] leading-relaxed">
+                      <div className="bg-[#E7F4EC] border border-[#1E7A46]/20 p-4 flex gap-3">
+                        <Info className="text-[#1E7A46] shrink-0 mt-0.5" size={16} />
+                        <p className="text-[12px] text-[#1E7A46] leading-relaxed">
                           Asegúrese de que el año de fabricación coincida con los documentos de importación para evitar retrasos en la verificación corporativa de iMaq.
                         </p>
                       </div>
@@ -2632,11 +2641,11 @@ export default function App() {
                       animate={{ opacity: 1, x: 0 }}
                       className="space-y-5"
                     >
-                      <h3 className="text-[11px] font-bold tracking-widest text-[#2B44C7] uppercase border-b border-[#F5F4F0] pb-2 mb-2">
+                      <h3 className="text-[11px] font-bold tracking-widest text-[#8A6A00] uppercase border-b border-[#F6F5F2] pb-2 mb-2">
                         Paso 2: Carga de fotos de la maquinaria
                       </h3>
 
-                      <p className="text-[#3A3A3A] text-[13px] leading-relaxed">
+                      <p className="text-[#17181A] text-[13px] leading-relaxed">
                         Arrastra o selecciona fotos reales de la maquinaria. La primera foto será la imagen principal del anuncio.
                       </p>
 
@@ -2649,12 +2658,12 @@ export default function App() {
                           if (e.dataTransfer.files) addPhotoFiles(e.dataTransfer.files);
                         }}
                         className={`border border-dashed p-8 text-center flex flex-col items-center justify-center space-y-2 cursor-pointer transition-colors block ${
-                          isDraggingPhoto ? 'border-[#2B44C7] bg-[#EEF1FD]' : 'border-[#B0B0B0] bg-[#F9F9F7] hover:bg-[#F5F4F0]'
+                          isDraggingPhoto ? 'border-[#FFC72C] bg-[#FFF3D6]' : 'border-[#6B6F76] bg-[#EFEEEA] hover:bg-[#F6F5F2]'
                         }`}
                       >
-                        <ImagePlus size={26} className="text-[#717171]" />
-                        <span className="text-[11px] font-bold text-[#0F0F0F] tracking-wide">ARRASTRA TUS FOTOS AQUÍ</span>
-                        <span className="text-[10px] text-[#717171]">o haz clic para seleccionar archivos</span>
+                        <ImagePlus size={26} className="text-[#6B6F76]" />
+                        <span className="text-[11px] font-bold text-[#17181A] tracking-wide">ARRASTRA TUS FOTOS AQUÍ</span>
+                        <span className="text-[10px] text-[#6B6F76]">o haz clic para seleccionar archivos</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -2667,10 +2676,10 @@ export default function App() {
                       {photoPreviews.length > 0 && (
                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                           {photoPreviews.map((src, i) => (
-                            <div key={src} className="relative aspect-square bg-[#E2E2DE] group overflow-hidden">
+                            <div key={src} className="relative aspect-square bg-[#E4E1DA] group overflow-hidden">
                               <img src={src} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
                               {i === 0 && (
-                                <span className="absolute top-1 left-1 bg-[#2B44C7] text-white text-[8px] font-bold uppercase px-1.5 py-0.5">
+                                <span className="absolute top-1 left-1 bg-[#FFC72C] text-[#17181A] text-[8px] font-bold uppercase px-1.5 py-0.5">
                                   Principal
                                 </span>
                               )}
@@ -2687,7 +2696,7 @@ export default function App() {
                       )}
 
                       {photoPreviews.length === 0 && (
-                        <div className="flex items-center space-x-2 text-[12px] text-[#C88010]">
+                        <div className="flex items-center space-x-2 text-[12px] text-[#E6B321]">
                           <Info size={14} />
                           <span>Aún no has agregado fotos. Puedes continuar, pero los anuncios con fotos reciben más contactos.</span>
                         </div>
@@ -2702,20 +2711,20 @@ export default function App() {
                       animate={{ opacity: 1, x: 0 }}
                       className="space-y-5"
                     >
-                      <h3 className="text-[11px] font-bold tracking-widest text-[#2B44C7] uppercase border-b border-[#F5F4F0] pb-2 mb-2">
+                      <h3 className="text-[11px] font-bold tracking-widest text-[#8A6A00] uppercase border-b border-[#F6F5F2] pb-2 mb-2">
                         Paso 3: Ubicación y Configuración de Tarifas
                       </h3>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             DEPARTAMENTO DE UBICACIÓN *
                           </label>
                           <select
                             required
                             value={formDepartamentoId ?? ''}
                             onChange={(e) => setFormDepartamentoId(e.target.value ? Number(e.target.value) : null)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none cursor-pointer disabled:opacity-60"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg cursor-pointer disabled:opacity-60"
                             disabled={departments.length === 0}
                           >
                             <option value="" disabled>
@@ -2728,7 +2737,7 @@ export default function App() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             MUNICIPIO / DISTRITO Y DETALLE
                           </label>
                           <input 
@@ -2736,19 +2745,19 @@ export default function App() {
                             placeholder="Ej: Antiguo Cuscatlán, San Miguelito"
                             value={formMunicipality}
                             onChange={(e) => setFormMunicipality(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             TARIFA DE ALQUILER (USD)
                           </label>
                           <div className="flex">
                             <div className="relative flex-1">
-                              <span className="absolute left-3 top-3.5 text-[#0F0F0F] text-[13px] font-bold font-mono-imaq">$</span>
+                              <span className="absolute left-3 top-3.5 text-[#17181A] text-[13px] font-bold font-mono-imaq">$</span>
                               <input
                                 type="number"
                                 required
@@ -2760,13 +2769,13 @@ export default function App() {
                                   const v = e.target.value;
                                   if (v === '' || Number(v) >= 0) setFormPrice(v);
                                 }}
-                                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 pl-8 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none font-mono-imaq"
+                                className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 pl-8 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg font-mono-imaq"
                               />
                             </div>
                             <select
                               value={formTipoPrecio}
                               onChange={(e) => setFormTipoPrecio(e.target.value as 'hora' | 'dia')}
-                              className="bg-[#F9F9F7] border border-l-0 border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium px-3 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 cursor-pointer"
+                              className="bg-[#EFEEEA] border border-l-0 border-[#E4E1DA] text-[#17181A] text-[13px] font-medium px-3 focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 cursor-pointer"
                             >
                               <option value="dia">por día</option>
                               <option value="hora">por hora</option>
@@ -2775,27 +2784,27 @@ export default function App() {
                         </div>
 
                         <div className="flex items-end gap-3">
-                          <div className="flex items-center space-x-2 h-12 bg-[#F9F9F7] px-3 border border-[#E2E2DE] flex-1">
+                          <div className="flex items-center space-x-2 h-12 bg-[#EFEEEA] px-3 border border-[#E4E1DA] flex-1">
                             <input
                               type="checkbox"
                               checked={formIncludesOperator}
                               onChange={(e) => setFormIncludesOperator(e.target.checked)}
-                              className="w-4 h-4 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                              className="w-4 h-4 text-[#FFC72C] focus:ring-0 border-[#E4E1DA]"
                               id="includes-operator"
                             />
-                            <label htmlFor="includes-operator" className="text-[12px] font-medium text-[#3A3A3A] cursor-pointer">
+                            <label htmlFor="includes-operator" className="text-[12px] font-medium text-[#17181A] cursor-pointer">
                               Incluye operador
                             </label>
                           </div>
-                          <div className="flex items-center space-x-2 h-12 bg-[#F9F9F7] px-3 border border-[#E2E2DE] flex-1">
+                          <div className="flex items-center space-x-2 h-12 bg-[#EFEEEA] px-3 border border-[#E4E1DA] flex-1">
                             <input
                               type="checkbox"
                               checked={formIncludesFuel}
                               onChange={(e) => setFormIncludesFuel(e.target.checked)}
-                              className="w-4 h-4 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                              className="w-4 h-4 text-[#FFC72C] focus:ring-0 border-[#E4E1DA]"
                               id="includes-fuel"
                             />
-                            <label htmlFor="includes-fuel" className="text-[12px] font-medium text-[#3A3A3A] cursor-pointer">
+                            <label htmlFor="includes-fuel" className="text-[12px] font-medium text-[#17181A] cursor-pointer">
                               Incluye combustible
                             </label>
                           </div>
@@ -2804,7 +2813,7 @@ export default function App() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             NOMBRE DE CONTACTO
                           </label>
                           <input
@@ -2812,11 +2821,11 @@ export default function App() {
                             placeholder="Persona o empresa de contacto"
                             value={formContactName}
                             onChange={(e) => setFormContactName(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             TELÉFONO DE CONTACTO
                           </label>
                           <input
@@ -2824,7 +2833,7 @@ export default function App() {
                             placeholder="Puede ser distinto al de tu cuenta"
                             value={formContactPhone}
                             onChange={(e) => setFormContactPhone(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 rounded-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 rounded-lg"
                           />
                         </div>
                       </div>
@@ -2832,27 +2841,27 @@ export default function App() {
                   )}
 
                   {/* Form control buttons footer */}
-                  <div className="pt-6 border-t border-[#E2E2DE] flex justify-between items-center mt-8">
+                  <div className="pt-6 border-t border-[#E4E1DA] flex justify-between items-center mt-8">
                     {publishStep > 1 ? (
                       <button 
                         type="button" 
                         onClick={() => setPublishStep((prev) => (prev - 1) as any)}
-                        className="text-[12px] font-bold uppercase tracking-wider text-[#717171] hover:text-[#0F0F0F] py-2 px-4 transition-colors cursor-pointer"
+                        className="text-[12px] font-bold uppercase tracking-wider text-[#6B6F76] hover:text-[#17181A] py-2 px-4 transition-colors cursor-pointer"
                       >
                         ← Atrás
                       </button>
                     ) : (
-                      <span className="text-[11px] text-[#717171]">El Salvador, Centro América</span>
+                      <span className="text-[11px] text-[#6B6F76]">El Salvador, Centro América</span>
                     )}
 
                     <button
                       type="button"
                       onClick={handlePublishNext}
                       disabled={publishSubmitting}
-                      className="bg-[#E8A020] hover:bg-[#C88010] disabled:opacity-60 disabled:cursor-not-allowed text-[#0F0F0F] font-bold text-[12px] tracking-widest uppercase px-8 py-3 rounded-none transition-colors ml-auto cursor-pointer flex items-center gap-2"
+                      className="bg-[#FFC72C] hover:bg-[#E6B321] disabled:opacity-60 disabled:cursor-not-allowed text-[#17181A] font-bold text-[12px] tracking-widest uppercase px-8 py-3 rounded-lg transition-colors ml-auto cursor-pointer flex items-center gap-2"
                     >
                       {publishStep === 3 && publishSubmitting && (
-                        <span className="w-3.5 h-3.5 border-2 border-[#0F0F0F]/30 border-t-[#0F0F0F] rounded-full animate-spin" />
+                        <span className="w-3.5 h-3.5 border-2 border-[#17181A]/30 border-t-[#17181A] rounded-full animate-spin" />
                       )}
                       {publishStep === 3
                         ? publishUploadingPhoto
@@ -2872,10 +2881,10 @@ export default function App() {
           </main>
 
           {/* Form simple footer */}
-          <footer className="bg-[#F5F4F0] border-t border-[#E2E2DE] py-6 px-4">
-            <div className="max-w-[1140px] mx-auto flex flex-col sm:flex-row justify-between items-center text-[#717171] text-[11px] space-y-2 sm:space-y-0">
+          <footer className="bg-[#F6F5F2] border-t border-[#E4E1DA] py-6 px-4">
+            <div className="max-w-[1140px] mx-auto flex flex-col sm:flex-row justify-between items-center text-[#6B6F76] text-[11px] space-y-2 sm:space-y-0">
               <span>© {new Date().getFullYear()} iMaq El Salvador. Todos los derechos reservados.</span>
-              <span className="font-serif-italic italic text-[#3A3A3A] text-[13px] font-semibold">"Alquila maquinaria, opera con confianza."</span>
+              <span className="font-serif-italic italic text-[#17181A] text-[13px] font-semibold">"Alquila maquinaria, opera con confianza."</span>
             </div>
           </footer>
 
@@ -2886,21 +2895,21 @@ export default function App() {
           PAGE 4: MI PANEL (all logged-in roles)
           ──────────────────────────────────────────────────────────────── */}
       {currentPage === 'dashboard' && loggedInUser && (
-        <main className="flex-1 bg-[#F5F4F0] py-12 px-4 max-w-[1140px] mx-auto w-full">
+        <main className="flex-1 bg-[#F6F5F2] py-12 px-4 max-w-[1140px] mx-auto w-full">
 
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div>
-              <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-[0.1em] mb-1">
+              <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-[0.1em] mb-1">
                 {loggedInUser.role === 'owner' ? 'PANEL DE PROPIETARIO' : loggedInUser.role === 'renter' ? 'PANEL DE ARRENDATARIO' : 'PANEL DE OPERADOR'}
               </span>
-              <h1 className="text-[#0F0F0F] text-2xl sm:text-3xl font-extrabold tracking-tight">
+              <h1 className="text-[#17181A] text-2xl sm:text-3xl font-extrabold tracking-tight">
                 Hola, {loggedInUser.name}
               </h1>
             </div>
             {loggedInUser.role === 'owner' && (
               <button
                 onClick={() => navigateTo('publish')}
-                className="bg-[#E8A020] hover:bg-[#C88010] text-[#0F0F0F] font-bold text-[12px] tracking-widest uppercase px-6 py-3 transition-colors cursor-pointer flex items-center gap-2"
+                className="bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] font-bold text-[12px] tracking-widest uppercase px-6 py-3 transition-colors cursor-pointer flex items-center gap-2"
               >
                 <Plus size={14} /> Publicar máquina
               </button>
@@ -2912,30 +2921,30 @@ export default function App() {
 
           {/* Stats row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-            <div className="bg-white border border-[#E2E2DE] p-6">
-              <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2">Máquinas publicadas</span>
-              <span className="block text-3xl font-extrabold text-[#0F0F0F]">{ownerMachines.length}</span>
+            <div className="bg-white border border-[#E4E1DA] p-6">
+              <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-wider mb-2">Máquinas publicadas</span>
+              <span className="block text-3xl font-extrabold text-[#17181A]">{ownerMachines.length}</span>
             </div>
-            <div className="bg-white border border-[#E2E2DE] p-6">
-              <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2">Disponibles</span>
-              <span className="block text-3xl font-extrabold text-[#16793A]">
+            <div className="bg-white border border-[#E4E1DA] p-6">
+              <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-wider mb-2">Disponibles</span>
+              <span className="block text-3xl font-extrabold text-[#1E7A46]">
                 {ownerMachines.filter((m) => m.status === 'available').length}
               </span>
             </div>
-            <div className="bg-white border border-[#E2E2DE] p-6">
-              <span className="block text-[10px] font-bold text-[#717171] uppercase tracking-wider mb-2">Alquiladas / Mantenimiento</span>
-              <span className="block text-3xl font-extrabold text-[#C88010]">
+            <div className="bg-white border border-[#E4E1DA] p-6">
+              <span className="block text-[10px] font-bold text-[#6B6F76] uppercase tracking-wider mb-2">Alquiladas / Mantenimiento</span>
+              <span className="block text-3xl font-extrabold text-[#E6B321]">
                 {ownerMachines.filter((m) => m.status !== 'available').length}
               </span>
             </div>
           </div>
 
           {/* Cotizaciones recibidas */}
-          <div className="bg-white border border-[#E2E2DE] mb-8">
-            <div className="p-5 border-b border-[#E2E2DE] flex items-center gap-2">
-              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Cotizaciones recibidas</h2>
+          <div className="bg-white border border-[#E4E1DA] mb-8">
+            <div className="p-5 border-b border-[#E4E1DA] flex items-center gap-2">
+              <h2 className="text-[14px] font-bold text-[#17181A]">Cotizaciones recibidas</h2>
               {cotizacionesRecibidas.filter((c) => c.estado === 'pendiente').length > 0 && (
-                <span className="bg-[#991B1B] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-[#C0392B] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {cotizacionesRecibidas.filter((c) => c.estado === 'pendiente').length}
                 </span>
               )}
@@ -2949,8 +2958,8 @@ export default function App() {
                     onClick={() => { setRecibidasFiltro(op.value); setRecibidasPagina(1); }}
                     className={`text-[10px] font-bold uppercase px-2.5 py-1 border transition-colors cursor-pointer ${
                       recibidasFiltro === op.value
-                        ? 'bg-[#2B44C7] border-[#2B44C7] text-white'
-                        : 'bg-white border-[#E2E2DE] text-[#3A3A3A] hover:border-[#2B44C7]'
+                        ? 'bg-[#FFC72C] border-[#FFC72C] text-[#17181A]'
+                        : 'bg-white border-[#E4E1DA] text-[#17181A] hover:border-[#FFC72C]'
                     }`}
                   >
                     {op.label}
@@ -2962,31 +2971,31 @@ export default function App() {
             {cotizacionesRecibidasLoading ? (
               <div className="p-6 space-y-3">
                 {[0, 1].map((i) => (
-                  <div key={i} className="h-16 bg-[#F5F4F0] animate-pulse" />
+                  <div key={i} className="h-16 bg-[#F6F5F2] animate-pulse" />
                 ))}
               </div>
             ) : cotizacionesRecibidas.length === 0 ? (
-              <p className="p-6 text-[13px] text-[#717171]">Aún no has recibido cotizaciones.</p>
+              <p className="p-6 text-[13px] text-[#6B6F76]">Aún no has recibido cotizaciones.</p>
             ) : cotizacionesRecibidasOrdenadas.length === 0 ? (
-              <p className="p-6 text-[13px] text-[#717171]">No hay cotizaciones con este estado.</p>
+              <p className="p-6 text-[13px] text-[#6B6F76]">No hay cotizaciones con este estado.</p>
             ) : (
               <div className="p-5 space-y-3">
                 {cotizacionesRecibidasPagina.map((cot) => {
                   const maquina = machines.find((m) => Number(m.id) === cot.maquina_id);
                   const enAccion = cotizacionActionId === cot.id;
                   return (
-                    <div key={cot.id} className="border border-[#E2E2DE] p-4 space-y-3">
+                    <div key={cot.id} className="border border-[#E4E1DA] p-4 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                          <p className="text-[13px] font-bold text-[#0F0F0F]">
+                          <p className="text-[13px] font-bold text-[#17181A]">
                             {cot.arrendatario_nombre} — {maquina?.name || `Máquina #${cot.maquina_id}`}
                           </p>
-                          <p className="text-[11px] text-[#717171]">
+                          <p className="text-[11px] text-[#6B6F76]">
                             {cot.fecha_inicio} a {cot.fecha_fin} · ${formatPrice(cot.precio_propuesto)} propuesto
                             {cot.notas ? ` — "${cot.notas}"` : ''}
                           </p>
                         </div>
-                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">
+                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F6F5F2] text-[#17181A]">
                           {ESTADO_COTIZACION_LABEL[cot.estado]}
                         </span>
                       </div>
@@ -2996,21 +3005,21 @@ export default function App() {
                           <button
                             onClick={() => handleAceptarCotizacionRecibida(cot.id)}
                             disabled={enAccion}
-                            className="bg-[#16793A] hover:bg-[#115C2C] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                            className="bg-[#1E7A46] hover:bg-[#145C33] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
                           >
                             Aceptar
                           </button>
                           <button
                             onClick={() => handleAbrirContraoferta(cot.id)}
                             disabled={enAccion}
-                            className="border border-[#0F0F0F] text-[#0F0F0F] hover:bg-[#F5F4F0] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                            className="border border-[#17181A] text-[#17181A] hover:bg-[#F6F5F2] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
                           >
                             Contraofertar
                           </button>
                           <button
                             onClick={() => handleRechazarCotizacionRecibida(cot.id)}
                             disabled={enAccion}
-                            className="border border-[#991B1B] text-[#991B1B] hover:bg-[#FEF2F2] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                            className="border border-[#C0392B] text-[#C0392B] hover:bg-[#FBEAE7] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
                           >
                             Rechazar
                           </button>
@@ -3018,7 +3027,7 @@ export default function App() {
                       )}
 
                       {contraofertaFormId === cot.id && (
-                        <form onSubmit={(e) => handleSubmitContraoferta(e, cot.id)} className="bg-[#F9F9F7] border border-[#E2E2DE] p-3 space-y-2">
+                        <form onSubmit={(e) => handleSubmitContraoferta(e, cot.id)} className="bg-[#EFEEEA] border border-[#E4E1DA] p-3 space-y-2">
                           <input
                             type="number"
                             min={1}
@@ -3026,40 +3035,40 @@ export default function App() {
                             placeholder="Precio total contraofertado (USD)"
                             value={contraofertaPrecio}
                             onChange={(e) => setContraofertaPrecio(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                            className="w-full bg-white border border-[#E4E1DA] text-[12px] p-2 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                           />
                           <textarea
                             rows={2}
                             placeholder="Notas (opcional)"
                             value={contraofertaNotas}
                             onChange={(e) => setContraofertaNotas(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
+                            className="w-full bg-white border border-[#E4E1DA] text-[12px] p-2 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 resize-none"
                           />
                           {!contraofertaMostrarFechas ? (
                             <button
                               type="button"
                               onClick={() => setContraofertaMostrarFechas(true)}
-                              className="text-[11px] text-[#2B44C7] font-medium hover:underline cursor-pointer flex items-center gap-1"
+                              className="text-[11px] text-[#8A6A00] font-medium hover:underline cursor-pointer flex items-center gap-1"
                             >
                               <Calendar size={12} /> ¿También quieres proponer otras fechas?
                             </button>
                           ) : (
                             <div className="space-y-2">
-                              <p className="text-[10px] font-bold uppercase text-[#717171]">Nuevas fechas propuestas</p>
+                              <p className="text-[10px] font-bold uppercase text-[#6B6F76]">Nuevas fechas propuestas</p>
                               <div className="grid grid-cols-2 gap-2">
                                 <input
                                   type="date"
                                   required
                                   value={contraofertaFechaInicio}
                                   onChange={(e) => setContraofertaFechaInicio(e.target.value)}
-                                  className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                                  className="w-full bg-white border border-[#E4E1DA] text-[12px] p-2 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                                 />
                                 <input
                                   type="date"
                                   required
                                   value={contraofertaFechaFin}
                                   onChange={(e) => setContraofertaFechaFin(e.target.value)}
-                                  className="w-full bg-white border border-[#E2E2DE] text-[12px] p-2 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                                  className="w-full bg-white border border-[#E4E1DA] text-[12px] p-2 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                                 />
                               </div>
                             </div>
@@ -3067,7 +3076,7 @@ export default function App() {
                           <button
                             type="submit"
                             disabled={enAccion}
-                            className="bg-[#2B44C7] hover:bg-[#1B2D6B] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                            className="bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
                           >
                             Enviar contraoferta
                           </button>
@@ -3076,7 +3085,7 @@ export default function App() {
 
                       {cot.estado === 'aceptada' && (
                         <div className="flex items-center gap-3 flex-wrap">
-                          <p className="text-[12px] text-[#16793A] font-semibold">¡Alquiler confirmado!</p>
+                          <p className="text-[12px] text-[#1E7A46] font-semibold">¡Alquiler confirmado!</p>
                           <button
                             onClick={() =>
                               handleAvisarWhatsApp(
@@ -3084,7 +3093,7 @@ export default function App() {
                                 `Hola ${cot.arrendatario_nombre}, confirmé tu cotización en iMaq para "${maquina?.name || 'la máquina'}" del ${formatFechaCorta(cot.fecha_inicio_contraoferta || cot.fecha_inicio)} al ${formatFechaCorta(cot.fecha_fin_contraoferta || cot.fecha_fin)}. ¡Alquiler confirmado!`
                               )
                             }
-                            className="text-[10px] font-bold uppercase text-[#16793A] hover:underline flex items-center gap-1"
+                            className="text-[10px] font-bold uppercase text-[#1E7A46] hover:underline flex items-center gap-1"
                           >
                             <PhoneCall size={12} /> Avisar por WhatsApp
                           </button>
@@ -3097,19 +3106,19 @@ export default function App() {
             )}
 
             {recibidasTotalPaginas > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-[#E2E2DE]">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-[#E4E1DA]">
                 <button
                   onClick={() => setRecibidasPagina((p) => Math.max(1, p - 1))}
                   disabled={recibidasPaginaActual === 1}
-                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  className="text-[11px] font-bold uppercase text-[#8A6A00] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   ← Anterior
                 </button>
-                <span className="text-[11px] text-[#717171]">Página {recibidasPaginaActual} de {recibidasTotalPaginas}</span>
+                <span className="text-[11px] text-[#6B6F76]">Página {recibidasPaginaActual} de {recibidasTotalPaginas}</span>
                 <button
                   onClick={() => setRecibidasPagina((p) => Math.min(recibidasTotalPaginas, p + 1))}
                   disabled={recibidasPaginaActual === recibidasTotalPaginas}
-                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  className="text-[11px] font-bold uppercase text-[#8A6A00] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Siguiente →
                 </button>
@@ -3118,27 +3127,27 @@ export default function App() {
           </div>
 
           {/* Owner's machines table */}
-          <div className="bg-white border border-[#E2E2DE]">
-            <div className="p-5 border-b border-[#E2E2DE]">
-              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Mis máquinas</h2>
+          <div className="bg-white border border-[#E4E1DA]">
+            <div className="p-5 border-b border-[#E4E1DA]">
+              <h2 className="text-[14px] font-bold text-[#17181A]">Mis máquinas</h2>
             </div>
 
             {machinesLoading ? (
               <div className="p-6 space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-10 bg-[#F5F4F0] animate-pulse" />
+                  <div key={i} className="h-10 bg-[#F6F5F2] animate-pulse" />
                 ))}
               </div>
             ) : ownerMachines.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-                <Wrench size={28} className="text-[#717171] mb-3" />
-                <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">Todavía no has publicado ninguna máquina</h3>
-                <p className="text-[13px] text-[#717171] max-w-[360px] mb-5">
+                <Wrench size={28} className="text-[#6B6F76] mb-3" />
+                <h3 className="text-[15px] font-bold text-[#17181A] mb-1">Todavía no has publicado ninguna máquina</h3>
+                <p className="text-[13px] text-[#6B6F76] max-w-[360px] mb-5">
                   Publica tu primer equipo para que otros contratistas puedan encontrarlo y alquilarlo.
                 </p>
                 <button
                   onClick={() => navigateTo('publish')}
-                  className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
+                  className="bg-[#17181A] hover:bg-[#17181A] text-white text-[12px] font-bold uppercase tracking-widest px-5 py-2.5 transition-colors cursor-pointer"
                 >
                   Publicar mi primera máquina
                 </button>
@@ -3147,7 +3156,7 @@ export default function App() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="border-b border-[#E2E2DE] text-[10px] uppercase tracking-wider text-[#717171]">
+                    <tr className="border-b border-[#E4E1DA] text-[10px] uppercase tracking-wider text-[#6B6F76]">
                       <th className="p-4 font-bold">Nombre</th>
                       <th className="p-4 font-bold">Tipo</th>
                       <th className="p-4 font-bold">Precio/día</th>
@@ -3156,17 +3165,17 @@ export default function App() {
                   </thead>
                   <tbody>
                     {ownerMachines.map((machine) => (
-                      <tr key={machine.id} className="border-b border-[#F5F4F0] hover:bg-[#F9F9F7] cursor-pointer" onClick={() => setSelectedMachine(machine)}>
-                        <td className="p-4 text-[13px] font-bold text-[#0F0F0F]">{machine.name}</td>
-                        <td className="p-4 text-[13px] text-[#3A3A3A] font-mono-imaq uppercase">{machine.cat}</td>
-                        <td className="p-4 text-[13px] font-mono-imaq text-[#C88010] font-bold">${formatPrice(machine.price)}/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</td>
+                      <tr key={machine.id} className="border-b border-[#F6F5F2] hover:bg-[#EFEEEA] cursor-pointer" onClick={() => setSelectedMachine(machine)}>
+                        <td className="p-4 text-[13px] font-bold text-[#17181A]">{machine.name}</td>
+                        <td className="p-4 text-[13px] text-[#17181A] font-mono-imaq uppercase">{machine.cat}</td>
+                        <td className="p-4 text-[13px] font-mono-imaq text-[#E6B321] font-bold">${formatPrice(machine.price)}/{machine.priceUnit === 'hora' ? 'hora' : 'día'}</td>
                         <td className="p-4">
                           <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 ${
                             machine.status === 'available'
-                              ? 'bg-[#E8F5ED] text-[#16793A]'
+                              ? 'bg-[#E7F4EC] text-[#1E7A46]'
                               : machine.status === 'rented'
-                              ? 'bg-[#FEF2F2] text-[#991B1B]'
-                              : 'bg-[#FFF9E6] text-[#C88010]'
+                              ? 'bg-[#FBEAE7] text-[#C0392B]'
+                              : 'bg-[#FBF1E1] text-[#E6B321]'
                           }`}>
                             {machine.status === 'available' ? 'DISPONIBLE' : machine.status === 'rented' ? 'ALQUILADO' : 'MANTENIMIENTO'}
                           </span>
@@ -3185,9 +3194,9 @@ export default function App() {
           {loggedInUser.role === 'renter' && (<>
 
           {/* Mis cotizaciones enviadas */}
-          <div className="bg-white border border-[#E2E2DE] mb-8">
-            <div className="p-5 border-b border-[#E2E2DE]">
-              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Mis cotizaciones enviadas</h2>
+          <div className="bg-white border border-[#E4E1DA] mb-8">
+            <div className="p-5 border-b border-[#E4E1DA]">
+              <h2 className="text-[14px] font-bold text-[#17181A]">Mis cotizaciones enviadas</h2>
             </div>
 
             {misCotizacionesEnviadas.length > 0 && (
@@ -3198,8 +3207,8 @@ export default function App() {
                     onClick={() => { setEnviadasFiltro(op.value); setEnviadasPagina(1); }}
                     className={`text-[10px] font-bold uppercase px-2.5 py-1 border transition-colors cursor-pointer ${
                       enviadasFiltro === op.value
-                        ? 'bg-[#2B44C7] border-[#2B44C7] text-white'
-                        : 'bg-white border-[#E2E2DE] text-[#3A3A3A] hover:border-[#2B44C7]'
+                        ? 'bg-[#FFC72C] border-[#FFC72C] text-[#17181A]'
+                        : 'bg-white border-[#E4E1DA] text-[#17181A] hover:border-[#FFC72C]'
                     }`}
                   >
                     {op.label}
@@ -3211,13 +3220,13 @@ export default function App() {
             {cotizacionesEnviadasLoading ? (
               <div className="p-6 space-y-3">
                 {[0, 1].map((i) => (
-                  <div key={i} className="h-16 bg-[#F5F4F0] animate-pulse" />
+                  <div key={i} className="h-16 bg-[#F6F5F2] animate-pulse" />
                 ))}
               </div>
             ) : misCotizacionesEnviadas.length === 0 ? (
-              <p className="p-6 text-[13px] text-[#717171]">Aún no has enviado ninguna cotización.</p>
+              <p className="p-6 text-[13px] text-[#6B6F76]">Aún no has enviado ninguna cotización.</p>
             ) : misCotizacionesEnviadasOrdenadas.length === 0 ? (
-              <p className="p-6 text-[13px] text-[#717171]">No hay cotizaciones con este estado.</p>
+              <p className="p-6 text-[13px] text-[#6B6F76]">No hay cotizaciones con este estado.</p>
             ) : (
               <div className="p-5 space-y-3">
                 {misCotizacionesEnviadasPagina.map((cot) => {
@@ -3225,22 +3234,22 @@ export default function App() {
                   const esContraoferta = cot.estado === 'contraoferta';
                   const enAccion = cotizacionActionId === cot.id;
                   return (
-                    <div key={cot.id} className="border border-[#E2E2DE] p-4 space-y-3">
+                    <div key={cot.id} className="border border-[#E4E1DA] p-4 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                          <p className="text-[13px] font-bold text-[#0F0F0F]">{maquina?.name || `Máquina #${cot.maquina_id}`}</p>
-                          <p className="text-[11px] text-[#717171]">
+                          <p className="text-[13px] font-bold text-[#17181A]">{maquina?.name || `Máquina #${cot.maquina_id}`}</p>
+                          <p className="text-[11px] text-[#6B6F76]">
                             {cot.fecha_inicio} a {cot.fecha_fin} · ${formatPrice(cot.precio_propuesto)} propuesto
                           </p>
                         </div>
-                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">
+                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F6F5F2] text-[#17181A]">
                           {ESTADO_COTIZACION_LABEL[cot.estado]}
                         </span>
                       </div>
 
                       {esContraoferta && (
-                        <div className="bg-[#FFF9E6] border border-[#C88010]/30 p-3 space-y-2">
-                          <p className="text-[12px] text-[#0F0F0F]">
+                        <div className="bg-[#FBF1E1] border border-[#E6B321]/30 p-3 space-y-2">
+                          <p className="text-[12px] text-[#17181A]">
                             Contraoferta: <strong>{cot.fecha_inicio_contraoferta} a {cot.fecha_fin_contraoferta}</strong> · $
                             {formatPrice(cot.precio_contraoferta ?? 0)}
                             {cot.notas_contraoferta ? ` — "${cot.notas_contraoferta}"` : ''}
@@ -3249,36 +3258,48 @@ export default function App() {
                             <button
                               onClick={() => handleAceptarContraofertaEnviada(cot.id)}
                               disabled={enAccion}
-                              className="bg-[#16793A] hover:bg-[#115C2C] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                              className="bg-[#1E7A46] hover:bg-[#145C33] text-white text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
                             >
                               Aceptar
                             </button>
-                            <button
-                              onClick={() => handleCancelarCotizacionEnviada(cot.id)}
-                              disabled={enAccion}
-                              className="border border-[#991B1B] text-[#991B1B] hover:bg-[#FEF2F2] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
-                            >
-                              Cancelar
-                            </button>
+                            {puedeCancelarCotizacion(cot.fecha_inicio_contraoferta || cot.fecha_inicio) ? (
+                              <button
+                                onClick={() => handleCancelarCotizacionEnviada(cot.id)}
+                                disabled={enAccion}
+                                className="border border-[#C0392B] text-[#C0392B] hover:bg-[#FBEAE7] text-[10px] font-bold uppercase px-3 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            ) : (
+                              <p className="text-[10px] text-[#6B6F76] bg-[#F6F5F2] rounded-md px-3 py-2">
+                                Ya no se puede cancelar: faltan menos de 48h para el inicio.
+                              </p>
+                            )}
                           </div>
                         </div>
                       )}
 
                       {cot.estado === 'pendiente' && (
-                        <button
-                          onClick={() => handleCancelarCotizacionEnviada(cot.id)}
-                          disabled={enAccion}
-                          className="text-[10px] font-bold uppercase text-[#991B1B] hover:underline disabled:opacity-60"
-                        >
-                          Cancelar cotización
-                        </button>
+                        puedeCancelarCotizacion(cot.fecha_inicio) ? (
+                          <button
+                            onClick={() => handleCancelarCotizacionEnviada(cot.id)}
+                            disabled={enAccion}
+                            className="text-[10px] font-bold uppercase text-[#C0392B] hover:underline disabled:opacity-60"
+                          >
+                            Cancelar cotización
+                          </button>
+                        ) : (
+                          <p className="text-[10px] text-[#6B6F76]">
+                            Ya no se puede cancelar: faltan menos de 48h para el inicio.
+                          </p>
+                        )
                       )}
 
                       {cot.estado === 'aceptada' && (
-                        <p className="text-[12px] text-[#16793A] font-semibold">¡Alquiler confirmado!</p>
+                        <p className="text-[12px] text-[#1E7A46] font-semibold">¡Alquiler confirmado!</p>
                       )}
                       {cot.estado === 'rechazada' && cot.motivo_rechazo && (
-                        <p className="text-[11px] text-[#717171]">Motivo: {cot.motivo_rechazo}</p>
+                        <p className="text-[11px] text-[#6B6F76]">Motivo: {cot.motivo_rechazo}</p>
                       )}
                     </div>
                   );
@@ -3287,19 +3308,19 @@ export default function App() {
             )}
 
             {enviadasTotalPaginas > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-[#E2E2DE]">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-[#E4E1DA]">
                 <button
                   onClick={() => setEnviadasPagina((p) => Math.max(1, p - 1))}
                   disabled={enviadasPaginaActual === 1}
-                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  className="text-[11px] font-bold uppercase text-[#8A6A00] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   ← Anterior
                 </button>
-                <span className="text-[11px] text-[#717171]">Página {enviadasPaginaActual} de {enviadasTotalPaginas}</span>
+                <span className="text-[11px] text-[#6B6F76]">Página {enviadasPaginaActual} de {enviadasTotalPaginas}</span>
                 <button
                   onClick={() => setEnviadasPagina((p) => Math.min(enviadasTotalPaginas, p + 1))}
                   disabled={enviadasPaginaActual === enviadasTotalPaginas}
-                  className="text-[11px] font-bold uppercase text-[#2B44C7] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  className="text-[11px] font-bold uppercase text-[#8A6A00] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Siguiente →
                 </button>
@@ -3308,35 +3329,35 @@ export default function App() {
           </div>
 
           {/* Historial de alquileres */}
-          <div className="bg-white border border-[#E2E2DE]">
-            <div className="p-5 border-b border-[#E2E2DE]">
-              <h2 className="text-[14px] font-bold text-[#0F0F0F]">Historial de alquileres</h2>
+          <div className="bg-white border border-[#E4E1DA]">
+            <div className="p-5 border-b border-[#E4E1DA]">
+              <h2 className="text-[14px] font-bold text-[#17181A]">Historial de alquileres</h2>
             </div>
 
             {alquileresLoading ? (
               <div className="p-6 space-y-3">
                 {[0, 1].map((i) => (
-                  <div key={i} className="h-12 bg-[#F5F4F0] animate-pulse" />
+                  <div key={i} className="h-12 bg-[#F6F5F2] animate-pulse" />
                 ))}
               </div>
             ) : misAlquileres.length === 0 ? (
-              <p className="p-6 text-[13px] text-[#717171]">Aún no tienes alquileres registrados.</p>
+              <p className="p-6 text-[13px] text-[#6B6F76]">Aún no tienes alquileres registrados.</p>
             ) : (
               <div className="p-5 space-y-3">
                 {misAlquileres.map((alq) => {
                   const maquina = machines.find((m) => Number(m.id) === alq.maquina_id);
                   return (
-                    <div key={alq.id} className="flex items-center justify-between border border-[#E2E2DE] p-3 gap-3 flex-wrap">
+                    <div key={alq.id} className="flex items-center justify-between border border-[#E4E1DA] p-3 gap-3 flex-wrap">
                       <div>
-                        <p className="text-[13px] font-bold text-[#0F0F0F]">{maquina?.name || `Máquina #${alq.maquina_id}`}</p>
-                        <p className="text-[11px] text-[#717171]">{alq.fecha_inicio} a {alq.fecha_fin} · ${formatPrice(alq.costo_total ?? alq.precio_acordado)}</p>
+                        <p className="text-[13px] font-bold text-[#17181A]">{maquina?.name || `Máquina #${alq.maquina_id}`}</p>
+                        <p className="text-[11px] text-[#6B6F76]">{alq.fecha_inicio} a {alq.fecha_fin} · ${formatPrice(alq.costo_total ?? alq.precio_acordado)}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F5F4F0] text-[#3A3A3A]">{alq.estado}</span>
+                        <span className="text-[9px] font-bold uppercase px-2 py-1 bg-[#F6F5F2] text-[#17181A]">{alq.estado}</span>
                         {alq.estado === 'finalizado' && (
                           <button
                             onClick={() => addToast('Abre el detalle de la máquina para calificarla desde el catálogo.', 'info')}
-                            className="text-[10px] font-bold uppercase text-[#2B44C7] hover:underline"
+                            className="text-[10px] font-bold uppercase text-[#8A6A00] hover:underline"
                           >
                             Calificar
                           </button>
@@ -3353,10 +3374,10 @@ export default function App() {
 
           {/* ─── OPERATOR SECTION ─── */}
           {loggedInUser.role === 'operator' && (
-            <div className="bg-white border border-[#E2E2DE] p-8 text-center">
-              <Briefcase size={28} className="text-[#717171] mx-auto mb-3" />
-              <h3 className="text-[15px] font-bold text-[#0F0F0F] mb-1">Panel de operador</h3>
-              <p className="text-[13px] text-[#717171] max-w-[400px] mx-auto">
+            <div className="bg-white border border-[#E4E1DA] p-8 text-center">
+              <Briefcase size={28} className="text-[#6B6F76] mx-auto mb-3" />
+              <h3 className="text-[15px] font-bold text-[#17181A] mb-1">Panel de operador</h3>
+              <p className="text-[13px] text-[#6B6F76] max-w-[400px] mx-auto">
                 Próximamente podrás ver las solicitudes de trabajo y alquileres donde estás asignado como operador.
               </p>
             </div>
@@ -3381,15 +3402,15 @@ export default function App() {
           SHARED FOOTER (Only shown if NOT on the Publish page)
           ──────────────────────────────────────────────────────────────── */}
       {currentPage !== 'publish' && (
-        <footer className="bg-[#F5F4F0] border-t border-[#E2E2DE] py-14 px-4">
+        <footer className="bg-[#F6F5F2] border-t border-[#E4E1DA] py-14 px-4">
           <div className="max-w-[1140px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12 pb-10">
             
             {/* Column 1 - Brand */}
             <div className="lg:col-span-5 space-y-4">
-              <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#0F0F0F]">
-                i<span className="text-[#2B44C7]">M</span>aq
+              <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#17181A]">
+                i<span className="text-[#8A6A00]">M</span>aq
               </span>
-              <p className="text-[#717171] text-[13px] leading-relaxed max-w-[340px]">
+              <p className="text-[#6B6F76] text-[13px] leading-relaxed max-w-[340px]">
                 Soluciones de infraestructura y maquinaria pesada con estándares de ingeniería global en Centroamérica.
               </p>
               
@@ -3398,13 +3419,13 @@ export default function App() {
                 <a 
                   href="#" 
                   onClick={(e) => { e.preventDefault(); addToast('@iMaq_sv en Instagram', 'info'); }}
-                  className="w-8 h-8 rounded-none border border-[#E2E2DE] bg-white flex items-center justify-center text-[#3A3A3A] hover:bg-black hover:text-white transition-colors"
+                  className="w-8 h-8 rounded-lg border border-[#E4E1DA] bg-white flex items-center justify-center text-[#17181A] hover:bg-black hover:text-white transition-colors"
                 >
                   <Instagram size={14} />
                 </a>
                 <a 
                   href="mailto:info@imaq.com.sv" 
-                  className="w-8 h-8 rounded-none border border-[#E2E2DE] bg-white flex items-center justify-center text-[#3A3A3A] hover:bg-black hover:text-white transition-colors"
+                  className="w-8 h-8 rounded-lg border border-[#E4E1DA] bg-white flex items-center justify-center text-[#17181A] hover:bg-black hover:text-white transition-colors"
                 >
                   <Mail size={14} />
                 </a>
@@ -3413,22 +3434,22 @@ export default function App() {
 
             {/* Column 2 - Explorar */}
             <div className="lg:col-span-2 space-y-3">
-              <h4 className="text-[10px] font-bold uppercase text-[#0F0F0F] tracking-widest">
+              <h4 className="text-[10px] font-bold uppercase text-[#17181A] tracking-widest">
                 EXPLORAR
               </h4>
               <ul className="space-y-2">
                 <li>
-                  <button onClick={() => navigateTo('home')} className="text-[13px] text-[#717171] hover:text-[#2B44C7] hover:underline">
+                  <button onClick={() => navigateTo('home')} className="text-[13px] text-[#6B6F76] hover:text-[#8A6A00] hover:underline">
                     Máquinas
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => navigateTo('operators')} className="text-[13px] text-[#717171] hover:text-[#2B44C7] hover:underline">
+                  <button onClick={() => navigateTo('operators')} className="text-[13px] text-[#6B6F76] hover:text-[#8A6A00] hover:underline">
                     Operadores
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => addToast('Pestaña informativa. Explore el catálogo.', 'info')} className="text-[13px] text-[#717171] hover:text-[#2B44C7] hover:underline">
+                  <button onClick={() => addToast('Pestaña informativa. Explore el catálogo.', 'info')} className="text-[13px] text-[#6B6F76] hover:text-[#8A6A00] hover:underline">
                     Cómo funciona
                   </button>
                 </li>
@@ -3437,22 +3458,22 @@ export default function App() {
 
             {/* Column 3 - Legal */}
             <div className="lg:col-span-2 space-y-3">
-              <h4 className="text-[10px] font-bold uppercase text-[#0F0F0F] tracking-widest">
+              <h4 className="text-[10px] font-bold uppercase text-[#17181A] tracking-widest">
                 LEGAL
               </h4>
               <ul className="space-y-2 text-[13px]">
                 <li>
-                  <a href="#" onClick={(e) => { e.preventDefault(); addToast('Condiciones de privacidad.', 'info'); }} className="text-[#717171] hover:text-[#2B44C7] hover:underline">
+                  <a href="#" onClick={(e) => { e.preventDefault(); addToast('Condiciones de privacidad.', 'info'); }} className="text-[#6B6F76] hover:text-[#8A6A00] hover:underline">
                     Privacidad
                   </a>
                 </li>
                 <li>
-                  <a href="#" onClick={(e) => { e.preventDefault(); addToast('Términos y condiciones.', 'info'); }} className="text-[#717171] hover:text-[#2B44C7] hover:underline">
+                  <a href="#" onClick={(e) => { e.preventDefault(); addToast('Términos y condiciones.', 'info'); }} className="text-[#6B6F76] hover:text-[#8A6A00] hover:underline">
                     Términos
                   </a>
                 </li>
                 <li>
-                  <a href="#" onClick={(e) => { e.preventDefault(); addToast('Pólizas de seguro de maquinaria.', 'info'); }} className="text-[#717171] hover:text-[#2B44C7] hover:underline">
+                  <a href="#" onClick={(e) => { e.preventDefault(); addToast('Pólizas de seguro de maquinaria.', 'info'); }} className="text-[#6B6F76] hover:text-[#8A6A00] hover:underline">
                     Seguros
                   </a>
                 </li>
@@ -3461,25 +3482,25 @@ export default function App() {
 
             {/* Column 4 - Newsletter */}
             <div className="lg:col-span-3 space-y-3">
-              <h4 className="text-[10px] font-bold uppercase text-[#0F0F0F] tracking-widest">
+              <h4 className="text-[10px] font-bold uppercase text-[#17181A] tracking-widest">
                 NEWSLETTER
               </h4>
-              <p className="text-[#717171] text-[12px] leading-relaxed">
+              <p className="text-[#6B6F76] text-[12px] leading-relaxed">
                 Reciba actualizaciones del mercado industrial.
               </p>
               
-              <form onSubmit={handleNewsletterSubmit} className="flex border border-[#E2E2DE] overflow-hidden bg-white">
+              <form onSubmit={handleNewsletterSubmit} className="flex border border-[#E4E1DA] overflow-hidden bg-white">
                 <input 
                   type="email" 
                   required
                   placeholder="Email" 
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
-                  className="bg-transparent text-[13px] p-2 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 flex-1 font-sans placeholder-[#B0B0B0] border-none"
+                  className="bg-transparent text-[13px] p-2 focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 flex-1 font-sans placeholder-[#6B6F76] border-none"
                 />
                 <button 
                   type="submit"
-                  className="bg-[#2B44C7] hover:bg-[#1B2D6B] text-white px-3 flex items-center justify-center transition-colors cursor-pointer"
+                  className="bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] px-3 flex items-center justify-center transition-colors cursor-pointer"
                 >
                   <Send size={14} />
                 </button>
@@ -3489,9 +3510,9 @@ export default function App() {
           </div>
 
           {/* Bottom attribution row */}
-          <div className="max-w-[1140px] mx-auto border-t border-[#E2E2DE] pt-7 flex flex-col sm:flex-row justify-between items-center text-[#717171] text-[12px] gap-4">
+          <div className="max-w-[1140px] mx-auto border-t border-[#E4E1DA] pt-7 flex flex-col sm:flex-row justify-between items-center text-[#6B6F76] text-[12px] gap-4">
             <span>© 2024 iMaq El Salvador. Todos los derechos reservados.</span>
-            <span className="font-serif-italic italic text-[#717171] text-[20px] font-semibold select-none">
+            <span className="font-serif-italic italic text-[#6B6F76] text-[20px] font-semibold select-none">
               Construyendo el futuro.
             </span>
           </div>
@@ -3517,79 +3538,79 @@ export default function App() {
                 <img
                   src={getImageUrl(selectedMachine.img, 'maquina')}
                   alt={selectedMachine.name}
-                  className="w-16 h-16 sm:w-28 sm:h-28 rounded-xl object-cover shrink-0 bg-[#E2E2DE]"
+                  className="w-16 h-16 sm:w-28 sm:h-28 rounded-xl object-cover shrink-0 bg-[#E4E1DA]"
                 />
                 <div className="flex-1 min-w-0 space-y-1">
-                  <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-[#2B44C7] bg-[#EEF1FC] px-2 py-0.5">
+                  <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-[#17181A] bg-[#FFF3D6] px-2 py-0.5">
                     {selectedMachine.cat}
                   </span>
-                  <h3 className="text-lg sm:text-xl font-bold text-[#0F0F0F] tracking-tight leading-tight truncate flex items-center gap-1.5">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#17181A] tracking-tight leading-tight truncate flex items-center gap-1.5">
                     {selectedMachine.name}
                     <button
                       onClick={(e) => handleWhatsAppContact(e, selectedMachine)}
                       title="Contactar por WhatsApp"
-                      className="text-[#16793A] hover:text-[#115C2C] transition-colors cursor-pointer shrink-0"
+                      className="text-[#1E7A46] hover:text-[#145C33] transition-colors cursor-pointer shrink-0"
                     >
                       <PhoneCall size={15} />
                     </button>
                   </h3>
-                  <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#717171]">
-                    <span className="flex items-center gap-1"><MapPin size={12} className="text-[#2B44C7]" />{selectedMachine.location}</span>
-                    <span className="flex items-center gap-1"><User size={12} className="text-[#2B44C7]" />{selectedMachine.owner}</span>
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#6B6F76]">
+                    <span className="flex items-center gap-1"><MapPin size={12} className="text-[#8A6A00]" />{selectedMachine.location}</span>
+                    <span className="flex items-center gap-1"><User size={12} className="text-[#8A6A00]" />{selectedMachine.owner}</span>
                   </div>
                   <div className="pt-1">
-                    <span className="block text-[8px] font-bold uppercase text-[#717171] tracking-wider">Precio diario</span>
-                    <span className="font-mono-imaq text-xl font-bold text-[#2B44C7]">
+                    <span className="block text-[8px] font-bold uppercase text-[#6B6F76] tracking-wider">Precio diario</span>
+                    <span className="font-mono-imaq text-xl font-bold text-[#17181A]">
                       ${formatPrice(selectedMachine.price)}
-                      <span className="text-[11px] font-normal text-[#717171]">/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
+                      <span className="text-[11px] font-normal text-[#6B6F76]">/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'}</span>
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedMachine(null)}
-                  className="w-7 h-7 border border-[#E2E2DE] hover:bg-[#F5F4F0] flex items-center justify-center text-[#717171] transition-colors shrink-0 cursor-pointer"
+                  className="w-7 h-7 border border-[#E4E1DA] hover:bg-[#F6F5F2] flex items-center justify-center text-[#6B6F76] transition-colors shrink-0 cursor-pointer"
                 >
                   <X size={14} />
                 </button>
               </div>
 
-              <div className="border-t border-[#E2E2DE]" />
+              <div className="border-t border-[#E4E1DA]" />
 
               {/* Banner de disponibilidad */}
               {reservaActiva ? (
-                <div className="flex items-start gap-2 bg-[#FEF2F2] border border-[#FCE2E2] px-3 py-2.5">
-                  <CalendarX size={14} className="text-[#991B1B] shrink-0 mt-[1px]" />
-                  <p className="text-[12px] text-[#7A1F1F] leading-relaxed">
+                <div className="flex items-start gap-2 bg-[#FBEAE7] border border-[#FBEAE7] px-3 py-2.5">
+                  <CalendarX size={14} className="text-[#C0392B] shrink-0 mt-[1px]" />
+                  <p className="text-[12px] text-[#A83226] leading-relaxed">
                     <span className="font-bold uppercase">No disponible</span> — Reservado del{' '}
                     {formatRangoEs(reservaActiva.fecha_inicio, reservaActiva.fecha_fin)}
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-[12px] font-bold text-[#2B44C7]">
-                  <span className="w-2 h-2 rounded-full bg-[#2B44C7] animate-pulse" /> Disponible ahora
+                <div className="flex items-center gap-2 text-[12px] font-bold text-[#17181A]">
+                  <span className="w-2 h-2 rounded-full bg-[#1E7A46] animate-pulse" /> Disponible ahora
                 </div>
               )}
 
               {selectedMachine.description && (
-                <p className="text-[13px] text-[#3A3A3A] leading-relaxed">{selectedMachine.description}</p>
+                <p className="text-[13px] text-[#17181A] leading-relaxed">{selectedMachine.description}</p>
               )}
 
-              <div className="border-t border-[#E2E2DE]" />
+              <div className="border-t border-[#E4E1DA]" />
 
               {/* 3 columnas: historial / operadores / calificaciones */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="min-w-0">
-                  <p className="text-[9px] font-bold text-[#717171] uppercase tracking-wider mb-1.5">Historial</p>
-                  <p className="text-[11px] text-[#717171]">Sin registros previos</p>
-                  <p className={`text-[11px] font-bold mt-1 ${reservaActiva ? 'text-[#991B1B]' : 'text-[#2B44C7]'}`}>
+                  <p className="text-[9px] font-bold text-[#6B6F76] uppercase tracking-wider mb-1.5">Historial</p>
+                  <p className="text-[11px] text-[#6B6F76]">Sin registros previos</p>
+                  <p className={`text-[11px] font-bold mt-1 ${reservaActiva ? 'text-[#C0392B]' : 'text-[#8A6A00]'}`}>
                     {reservaActiva ? 'No disponible' : 'Disponible ahora'}
                   </p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-[9px] font-bold text-[#717171] uppercase tracking-wider mb-1.5">Operadores disponibles</p>
+                  <p className="text-[9px] font-bold text-[#6B6F76] uppercase tracking-wider mb-1.5">Operadores disponibles</p>
                   <div className="space-y-1.5">
-                    {operators.length === 0 && <p className="text-[11px] text-[#717171]">Sin operadores</p>}
+                    {operators.length === 0 && <p className="text-[11px] text-[#6B6F76]">Sin operadores</p>}
                     {operators.slice(0, 2).map((op) => (
                       <button
                         key={op.id}
@@ -3597,13 +3618,13 @@ export default function App() {
                         className="block w-full text-left cursor-pointer group"
                         title={`Contratar a ${op.name}`}
                       >
-                        <p className="text-[11px] font-bold text-[#0F0F0F] group-hover:text-[#2B44C7] truncate">{op.name}</p>
-                        <p className="text-[10px] text-[#717171] truncate">
+                        <p className="text-[11px] font-bold text-[#17181A] group-hover:text-[#8A6A00] truncate">{op.name}</p>
+                        <p className="text-[10px] text-[#6B6F76] truncate">
                           {op.tarifaDia ? `+$${formatPrice(op.tarifaDia)}/día` : 'Consultar'}
                         </p>
                         <span
                           className={`inline-block text-[8px] font-bold uppercase px-1.5 py-0.5 mt-0.5 ${
-                            op.verified ? 'bg-[#EEF1FC] text-[#2B44C7]' : 'bg-[#F5F4F0] text-[#717171]'
+                            op.verified ? 'bg-[#FFF3D6] text-[#17181A]' : 'bg-[#F6F5F2] text-[#6B6F76]'
                           }`}
                         >
                           {op.verified ? 'Verificado' : 'Nuevo'}
@@ -3614,20 +3635,20 @@ export default function App() {
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-[9px] font-bold text-[#717171] uppercase tracking-wider mb-1.5">Calificaciones</p>
-                  {ratingsLoading && <p className="text-[11px] text-[#717171]">…</p>}
+                  <p className="text-[9px] font-bold text-[#6B6F76] uppercase tracking-wider mb-1.5">Calificaciones</p>
+                  {ratingsLoading && <p className="text-[11px] text-[#6B6F76]">…</p>}
                   {!ratingsLoading && machineRatings.length === 0 && (
-                    <p className="text-[11px] text-[#717171] flex items-center gap-1">
-                      <Star size={11} className="stroke-[#E2E2DE]" /> Aún sin calificar
+                    <p className="text-[11px] text-[#6B6F76] flex items-center gap-1">
+                      <Star size={11} className="stroke-[#E4E1DA]" /> Aún sin calificar
                     </p>
                   )}
                   {!ratingsLoading && machineRatings.length > 0 && (
                     <div className="flex items-center gap-1">
-                      <Star size={11} className="fill-[#E8A020] stroke-[#E8A020]" />
-                      <span className="text-[11px] font-bold text-[#0F0F0F]">
+                      <Star size={11} className="fill-[#FFC72C] stroke-[#FFC72C]" />
+                      <span className="text-[11px] font-bold text-[#17181A]">
                         {(machineRatings.reduce((sum, r) => sum + r.estrellas, 0) / machineRatings.length).toFixed(1)}
                       </span>
-                      <span className="text-[10px] text-[#717171]">({machineRatings.length})</span>
+                      <span className="text-[10px] text-[#6B6F76]">({machineRatings.length})</span>
                     </div>
                   )}
                 </div>
@@ -3635,10 +3656,10 @@ export default function App() {
 
               {/* Calendario + formulario de cotizar */}
               {isCotizarFormOpen && (
-                <form onSubmit={handleSubmitCotizacion} className="border-t border-[#E2E2DE] pt-3 space-y-2">
+                <form onSubmit={handleSubmitCotizacion} className="border-t border-[#E4E1DA] pt-3 space-y-2">
                   {cotizarCalendarioAbierto || !cotizarFechaInicio || !cotizarFechaFin ? (
                     <div
-                      className="flex justify-center text-[13px] [--rdp-accent-color:#2B44C7] [--rdp-accent-background-color:#EEF1FC] [--rdp-day-width:28px] [--rdp-day-height:28px] [--rdp-day_button-width:26px] [--rdp-day_button-height:26px] [--rdp-nav-height:2rem] [--rdp-weekday-padding:0.15rem_0rem]"
+                      className="flex justify-center text-[13px] [--rdp-accent-color:#FFC72C] [--rdp-accent-background-color:#FFF3D6] [--rdp-day-width:28px] [--rdp-day-height:28px] [--rdp-day_button-width:26px] [--rdp-day_button-height:26px] [--rdp-nav-height:2rem] [--rdp-weekday-padding:0.15rem_0rem]"
                     >
                       <DayPicker
                         mode="range"
@@ -3650,34 +3671,34 @@ export default function App() {
                       />
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between bg-white border border-[#E2E2DE] px-3 py-2.5">
-                      <p className="text-[12px] font-medium text-[#0F0F0F] flex items-center gap-1.5">
-                        <Calendar size={13} className="text-[#717171]" />
+                    <div className="flex items-center justify-between bg-white border border-[#E4E1DA] px-3 py-2.5">
+                      <p className="text-[12px] font-medium text-[#17181A] flex items-center gap-1.5">
+                        <Calendar size={13} className="text-[#6B6F76]" />
                         {formatRangoEs(cotizarFechaInicio, cotizarFechaFin)}
                       </p>
                       <button
                         type="button"
                         onClick={() => setCotizarCalendarioAbierto(true)}
-                        className="text-[11px] text-[#2B44C7] font-bold hover:underline cursor-pointer shrink-0"
+                        className="text-[11px] text-[#8A6A00] font-bold hover:underline cursor-pointer shrink-0"
                       >
                         Cambiar fechas
                       </button>
                     </div>
                   )}
                   {cotizarRangeError && (
-                    <p className="text-[11px] text-[#991B1B] font-bold text-center">{cotizarRangeError}</p>
+                    <p className="text-[11px] text-[#C0392B] font-bold text-center">{cotizarRangeError}</p>
                   )}
                   {cotizarFechaInicio && cotizarFechaFin && (
-                    <div className="bg-[#F5F4F0] border border-[#E2E2DE] p-2.5">
-                      <p className="text-[9px] font-bold uppercase text-[#717171] mb-1">Total del presupuesto (precio de lista)</p>
-                      <p className="text-[12px] font-medium text-[#0F0F0F]">
+                    <div className="bg-[#F6F5F2] border border-[#E4E1DA] p-2.5">
+                      <p className="text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Total del presupuesto (precio de lista)</p>
+                      <p className="text-[12px] font-medium text-[#17181A]">
                         {cotizarDias} día{cotizarDias === 1 ? '' : 's'} × ${formatPrice(selectedMachine.price)}/{selectedMachine.priceUnit === 'hora' ? 'hora' : 'día'} ={' '}
                         <span className="font-bold">${formatPrice(cotizarTotalPresupuesto)}</span>
                       </p>
                     </div>
                   )}
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Precio propuesto (total a pagar, USD)</label>
+                    <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Precio propuesto (total a pagar, USD)</label>
                     <input
                       type="number"
                       min={1}
@@ -3685,29 +3706,29 @@ export default function App() {
                       placeholder="Ej: 350"
                       value={cotizarPrecio}
                       onChange={(e) => setCotizarPrecio(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                     />
                     {cotizarPrecioInvalido ? (
-                      <p className="text-[11px] text-[#991B1B] font-bold mt-1">El precio propuesto debe ser menor al total al precio de la máquina.</p>
+                      <p className="text-[11px] text-[#C0392B] font-bold mt-1">El precio propuesto debe ser menor al total al precio de la máquina.</p>
                     ) : (
-                      <p className="text-[10px] text-[#717171] mt-1">
+                      <p className="text-[10px] text-[#6B6F76] mt-1">
                         Debe ser menor al total al precio de lista (${formatPrice(cotizarTotalPresupuesto)}).
                       </p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-[#717171] mb-1">Notas (opcional)</label>
+                    <label className="block text-[9px] font-bold uppercase text-[#6B6F76] mb-1">Notas (opcional)</label>
                     <textarea
                       rows={1}
                       value={cotizarNotas}
                       onChange={(e) => setCotizarNotas(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[12px] font-medium p-2.5 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 resize-none"
+                      className="w-full bg-white border border-[#E4E1DA] text-[#17181A] text-[12px] font-medium p-2.5 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 resize-none"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={cotizarSubmitting || !!cotizarRangeError || !cotizarFechaInicio || !cotizarFechaFin || cotizarPrecioInvalido}
-                    className="w-full bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-wider px-4 py-3 transition-colors disabled:opacity-60 cursor-pointer"
+                    className="w-full bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] font-bold text-[11px] uppercase tracking-wider px-4 py-3 transition-colors disabled:opacity-60 cursor-pointer"
                   >
                     {cotizarSubmitting ? 'Enviando…' : 'Enviar cotización'}
                   </button>
@@ -3718,16 +3739,16 @@ export default function App() {
             {/* Footer: cotizar (abre/oculta el formulario) y cerrar. Al enviar la cotización
                 con éxito el modal se cierra y navega directo al panel, así que no hace falta
                 un estado de éxito aparte aquí. */}
-            <div className="bg-[#F5F4F0] p-4 border-t border-[#E2E2DE] flex flex-col sm:flex-row gap-2 shrink-0">
+            <div className="bg-[#F6F5F2] p-4 border-t border-[#E4E1DA] flex flex-col sm:flex-row gap-2 shrink-0">
               <button
                 onClick={handleAbrirFormularioCotizar}
-                className="flex-1 bg-[#2B44C7] hover:bg-[#1B2D6B] text-white font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="flex-1 bg-[#FFC72C] hover:bg-[#E6B321] text-[#17181A] font-bold text-[11px] uppercase tracking-widest px-4 py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 <Send size={13} /> {isCotizarFormOpen ? 'Ocultar formulario' : 'Cotizar esta máquina'}
               </button>
               <button
                 onClick={() => setSelectedMachine(null)}
-                className="bg-[#0F0F0F] hover:bg-[#3A3A3A] text-white font-bold text-[11px] uppercase tracking-widest px-5 py-2.5 cursor-pointer"
+                className="bg-[#17181A] hover:bg-[#17181A] text-white font-bold text-[11px] uppercase tracking-widest px-5 py-2.5 cursor-pointer"
               >
                 Cerrar ventana
               </button>
@@ -3749,30 +3770,30 @@ export default function App() {
               {/* Title & Brand Intro (fixed, doesn't scroll) */}
               <div className="p-5 pb-3 text-center space-y-1.5 shrink-0">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#0F0F0F] text-left">
-                    i<span className="text-[#2B44C7]">M</span>aq
+                  <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#17181A] text-left">
+                    i<span className="text-[#8A6A00]">M</span>aq
                   </span>
 
                   <button
                     onClick={() => { setIsAuthModalOpen(false); setIsOperatorOnlyRegistration(false); resetForgotPasswordFlow(); }}
-                    className="text-[#717171] hover:text-[#0F0F0F]"
+                    className="text-[#6B6F76] hover:text-[#17181A]"
                   >
                     <X size={18} />
                   </button>
                 </div>
-                <p className="text-[12px] text-[#717171] uppercase font-bold tracking-wider leading-none text-left">
+                <p className="text-[12px] text-[#6B6F76] uppercase font-bold tracking-wider leading-none text-left">
                   Marketplace de maquinaria de construcción
                 </p>
               </div>
 
               {/* Toggle switch tabs (fixed, doesn't scroll) */}
-              <div className="grid grid-cols-2 border-t border-b border-[#E2E2DE] divide-x divide-[#E2E2DE] shrink-0">
+              <div className="grid grid-cols-2 border-t border-b border-[#E4E1DA] divide-x divide-[#E4E1DA] shrink-0">
                 <button
                   onClick={() => { setAuthTab('login'); }}
                   className={`py-3 text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer ${
                     authTab === 'login'
-                      ? 'bg-[#0F0F0F] text-white'
-                      : 'bg-white text-[#717171] hover:bg-[#F9F9F7]'
+                      ? 'bg-[#17181A] text-white'
+                      : 'bg-white text-[#6B6F76] hover:bg-[#EFEEEA]'
                   }`}
                 >
                   Ingresar
@@ -3781,8 +3802,8 @@ export default function App() {
                   onClick={() => { setAuthTab('register'); resetForgotPasswordFlow(); }}
                   className={`py-3 text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer ${
                     authTab === 'register'
-                      ? 'bg-[#0F0F0F] text-white'
-                      : 'bg-white text-[#717171] hover:bg-[#F9F9F7]'
+                      ? 'bg-[#17181A] text-white'
+                      : 'bg-white text-[#6B6F76] hover:bg-[#EFEEEA]'
                   }`}
                 >
                   Registrarse
@@ -3798,24 +3819,24 @@ export default function App() {
                     <button
                       type="button"
                       onClick={resetForgotPasswordFlow}
-                      className="text-[11px] font-semibold text-[#717171] hover:text-[#0F0F0F] flex items-center gap-1"
+                      className="text-[11px] font-semibold text-[#6B6F76] hover:text-[#17181A] flex items-center gap-1"
                     >
                       ← Volver a ingresar
                     </button>
 
                     {forgotSent ? (
-                      <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-4">
-                        <p className="text-[13px] text-[#16793A] leading-relaxed">
+                      <div className="bg-[#E7F4EC] border border-[#1E7A46]/20 rounded-lg p-4">
+                        <p className="text-[13px] text-[#1E7A46] leading-relaxed">
                           Si existe una cuenta con ese email, recibirás un link en los próximos minutos.
                         </p>
                       </div>
                     ) : (
                       <>
-                        <p className="text-[12px] text-[#717171] leading-relaxed">
+                        <p className="text-[12px] text-[#6B6F76] leading-relaxed">
                           Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
                         </p>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                             Correo Electrónico
                           </label>
                           <input
@@ -3824,18 +3845,18 @@ export default function App() {
                             placeholder="Ej: constructor@obras.sv"
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                            className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                           />
                         </div>
                       </>
                     )}
                     </div>
                     {!forgotSent && (
-                      <div className="p-8 pt-4 border-t border-[#E2E2DE] shrink-0">
+                      <div className="p-8 pt-4 border-t border-[#E4E1DA] shrink-0">
                         <button
                           type="submit"
                           disabled={forgotLoading}
-                          className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                          className="mx-auto min-w-[200px] block py-3 px-6 bg-[#FFC72C] hover:bg-[#E6B321] disabled:opacity-60 disabled:cursor-not-allowed text-[#17181A] text-[12px] font-bold uppercase tracking-widest rounded-lg transition-colors cursor-pointer"
                         >
                           {forgotLoading ? 'Enviando...' : 'Enviar instrucciones'}
                         </button>
@@ -3846,7 +3867,7 @@ export default function App() {
                 <form onSubmit={handleLoginSubmit} className="flex flex-col flex-1 min-h-0">
                   <div className="overflow-y-auto flex-1 p-8 space-y-4">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                       Correo Electrónico
                     </label>
                     <input
@@ -3855,12 +3876,12 @@ export default function App() {
                       placeholder="Ej: constructor@obras.sv"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                       Contraseña
                     </label>
                     <input
@@ -3869,16 +3890,16 @@ export default function App() {
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                     />
                   </div>
                   </div>
 
-                  <div className="p-8 pt-4 border-t border-[#E2E2DE] space-y-3 shrink-0">
+                  <div className="p-8 pt-4 border-t border-[#E4E1DA] space-y-3 shrink-0">
                     <button
                       type="submit"
                       disabled={authLoading}
-                      className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                      className="mx-auto min-w-[200px] block py-3 px-6 bg-[#FFC72C] hover:bg-[#E6B321] disabled:opacity-60 disabled:cursor-not-allowed text-[#17181A] text-[12px] font-bold uppercase tracking-widest rounded-lg transition-colors cursor-pointer"
                     >
                       {authLoading ? 'Ingresando...' : 'Ingresar con mi cuenta'}
                     </button>
@@ -3886,7 +3907,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setShowForgotPassword(true)}
-                      className="w-full text-center text-[12px] font-semibold text-[#2B44C7] hover:underline"
+                      className="w-full text-center text-[12px] font-semibold text-[#17181A] hover:text-[#8A6A00]"
                     >
                       ¿Olvidaste tu contraseña?
                     </button>
@@ -3899,69 +3920,49 @@ export default function App() {
                 <div className="overflow-y-auto flex-1 p-8 space-y-3">
 
                   {isOperatorOnlyRegistration ? (
-                    <div className="bg-[#E8F5ED] border border-[#2B44C7]/30 p-2 flex items-center gap-2">
+                    <div className="bg-[#E7F4EC] border border-[#1E7A46]/30 rounded-lg p-2 flex items-center gap-2">
                       <span className="text-[14px]">👷</span>
-                      <span className="text-[13px] font-bold text-[#0F0F0F]">Registro de Operador</span>
+                      <span className="text-[13px] font-bold text-[#17181A]">Registro de Operador</span>
                     </div>
                   ) : (
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
-                      TIPO DE CUENTA
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
+                      ¿Ofrecés tus servicios como operador de maquinaria?
                     </label>
+                    <p className="text-[11px] text-[#6B6F76] leading-relaxed">
+                      Con tu cuenta ya podés publicar y alquilar maquinaria. Contanos si además ofrecés tus
+                      servicios como operador.
+                    </p>
 
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
 
-                      {/* Operator Option */}
-                      <div
-                        onClick={() => setRegisterRole('operator')}
-                        className={`p-3 border text-left cursor-pointer transition-colors ${
-                          registerRole === 'operator'
-                            ? 'bg-[#E8F5ED] border-[#2B44C7]'
-                            : 'bg-white border-[#E2E2DE] hover:bg-[#F9F9F7]'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[14px]">👷</span>
-                          <span className="text-[13px] font-bold text-[#0F0F0F]">Operador</span>
-                        </div>
-                        <span className="block text-[11px] text-[#717171] mt-0.5">
-                          Quiero ofrecer mis servicios y ser contratado.
-                        </span>
-                      </div>
-
-                      {/* Owner Option */}
-                      <div
-                        onClick={() => setRegisterRole('owner')}
-                        className={`p-3 border text-left cursor-pointer transition-colors ${
-                          registerRole === 'owner'
-                            ? 'bg-[#E8F5ED] border-[#2B44C7]'
-                            : 'bg-white border-[#E2E2DE] hover:bg-[#F9F9F7]'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[14px]">🏗️</span>
-                          <span className="text-[13px] font-bold text-[#0F0F0F]">Propietario</span>
-                        </div>
-                        <span className="block text-[11px] text-[#717171] mt-0.5">
-                          Tengo maquinaria pesada para listar en alquiler.
-                        </span>
-                      </div>
-
-                      {/* Renter Option */}
+                      {/* No — renter/owner (merged) */}
                       <div
                         onClick={() => setRegisterRole('renter')}
-                        className={`p-3 border text-left cursor-pointer transition-colors ${
-                          registerRole === 'renter'
-                            ? 'bg-[#E8F5ED] border-[#2B44C7]'
-                            : 'bg-white border-[#E2E2DE] hover:bg-[#F9F9F7]'
+                        className={`p-3 border rounded-lg text-left cursor-pointer transition-colors ${
+                          registerRole !== 'operator'
+                            ? 'bg-[#E7F4EC] border-[#1E7A46]'
+                            : 'bg-white border-[#E4E1DA] hover:bg-[#EFEEEA]'
                         }`}
                       >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[14px]">🏢</span>
-                          <span className="text-[13px] font-bold text-[#0F0F0F]">Arrendatario</span>
-                        </div>
-                        <span className="block text-[11px] text-[#717171] mt-0.5">
-                          Necesito alquilar maquinaria para mis obras viles.
+                        <span className="text-[13px] font-bold text-[#17181A]">No</span>
+                        <span className="block text-[11px] text-[#6B6F76] mt-0.5">
+                          Solo quiero alquilar o publicar maquinaria.
+                        </span>
+                      </div>
+
+                      {/* Sí — operator */}
+                      <div
+                        onClick={() => setRegisterRole('operator')}
+                        className={`p-3 border rounded-lg text-left cursor-pointer transition-colors ${
+                          registerRole === 'operator'
+                            ? 'bg-[#E7F4EC] border-[#1E7A46]'
+                            : 'bg-white border-[#E4E1DA] hover:bg-[#EFEEEA]'
+                        }`}
+                      >
+                        <span className="text-[13px] font-bold text-[#17181A]">Sí</span>
+                        <span className="block text-[11px] text-[#6B6F76] mt-0.5">
+                          También ofrezco mis servicios como operador.
                         </span>
                       </div>
 
@@ -3970,7 +3971,7 @@ export default function App() {
                   )}
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                       Nombre Completo
                     </label>
                     <input
@@ -3979,12 +3980,12 @@ export default function App() {
                       placeholder="Ej: Ing. Jorge Iraheta"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                       DUI
                     </label>
                     <input
@@ -4004,13 +4005,13 @@ export default function App() {
                         }
                       }}
                       maxLength={10}
-                      className={`w-full bg-white border text-[#0F0F0F] text-[13px] font-medium p-3 focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 font-mono-imaq ${
-                        regDuiError ? 'border-[#991B1B]' : 'border-[#E2E2DE] focus:border-[#2B44C7]'
+                      className={`w-full bg-white border rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 font-mono-imaq ${
+                        regDuiError ? 'border-[#C0392B]' : 'border-[#E4E1DA] focus:border-[#FFC72C]'
                       }`}
                     />
-                    {regDuiError && <p className="text-[11px] text-[#991B1B] mt-1">{regDuiError}</p>}
+                    {regDuiError && <p className="text-[11px] text-[#C0392B] mt-1">{regDuiError}</p>}
                     {duiConflictMessage && (
-                      <p className="text-[11px] text-[#991B1B] mt-1">
+                      <p className="text-[11px] text-[#C0392B] mt-1">
                         Ya existe una cuenta con este DUI.{' '}
                         <button
                           type="button"
@@ -4019,7 +4020,7 @@ export default function App() {
                             setShowForgotPassword(true);
                             setForgotEmail(regEmail);
                           }}
-                          className="font-bold underline hover:text-[#0F0F0F]"
+                          className="font-bold underline hover:text-[#17181A]"
                         >
                           ¿Olvidaste tu contraseña?
                         </button>
@@ -4028,7 +4029,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                       Correo Electrónico
                     </label>
                     <input
@@ -4037,16 +4038,16 @@ export default function App() {
                       placeholder="Ej: jorge@infraestructuras.sv"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                       WhatsApp
                     </label>
                     <div className="flex">
-                      <span className="flex items-center px-3 bg-[#F5F4F0] border border-r-0 border-[#E2E2DE] text-[#717171] text-[13px] font-bold font-mono-imaq">
+                      <span className="flex items-center px-3 bg-[#F6F5F2] border border-r-0 border-[#E4E1DA] rounded-l-lg text-[#6B6F76] text-[13px] font-bold font-mono-imaq">
                         {PHONE_PREFIX}
                       </span>
                       <input
@@ -4057,13 +4058,13 @@ export default function App() {
                         value={regPhone}
                         onChange={(e) => setRegPhone(formatLocalPhone(e.target.value))}
                         maxLength={9}
-                        className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30 font-mono-imaq"
+                        className="w-full bg-white border border-[#E4E1DA] rounded-r-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30 font-mono-imaq"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                    <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                       Contraseña
                     </label>
                     <input
@@ -4073,14 +4074,14 @@ export default function App() {
                       placeholder="Mínimo 8 caracteres"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
-                      className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                      className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                     />
                   </div>
 
                   {isOperatorOnlyRegistration && (
                     <>
                       <div>
-                        <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+                        <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                           Tipos de máquina que opera
                         </label>
                         <div className="grid grid-cols-3 gap-2">
@@ -4089,8 +4090,8 @@ export default function App() {
                             return (
                               <label
                                 key={tipo}
-                                className={`flex items-center gap-2 p-2 border text-[12px] font-medium cursor-pointer transition-colors ${
-                                  checked ? 'bg-[#E8F5ED] border-[#2B44C7] text-[#0F0F0F]' : 'bg-white border-[#E2E2DE] text-[#3A3A3A]'
+                                className={`flex items-center gap-2 p-2 border rounded-lg text-[12px] font-medium cursor-pointer transition-colors ${
+                                  checked ? 'bg-[#E7F4EC] border-[#1E7A46] text-[#17181A]' : 'bg-white border-[#E4E1DA] text-[#17181A]'
                                 }`}
                               >
                                 <input
@@ -4101,7 +4102,7 @@ export default function App() {
                                       e.target.checked ? [...prev, tipo] : prev.filter((t) => t !== tipo)
                                     )
                                   }
-                                  className="w-3.5 h-3.5 text-[#2B44C7] focus:ring-0 border-[#E2E2DE]"
+                                  className="w-3.5 h-3.5 text-[#FFC72C] focus:ring-0 border-[#E4E1DA]"
                                 />
                                 {tipo}
                               </label>
@@ -4112,7 +4113,7 @@ export default function App() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                             Años de experiencia
                           </label>
                           <input
@@ -4121,11 +4122,11 @@ export default function App() {
                             placeholder="Ej: 5"
                             value={operatorExperience}
                             onChange={(e) => setOperatorExperience(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                            className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1">
+                          <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1">
                             Tarifa por día (USD)
                           </label>
                           <input
@@ -4134,7 +4135,7 @@ export default function App() {
                             placeholder="Ej: 30"
                             value={operatorRate}
                             onChange={(e) => setOperatorRate(e.target.value)}
-                            className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none focus:ring-2 focus:ring-[#2B44C7]/30"
+                            className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none focus:ring-2 focus:ring-[#FFC72C]/30"
                           />
                         </div>
                       </div>
@@ -4143,11 +4144,11 @@ export default function App() {
 
                 </div>
 
-                <div className="p-6 border-t border-[#E2E2DE] shrink-0">
+                <div className="p-6 border-t border-[#E4E1DA] shrink-0">
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                    className="mx-auto min-w-[200px] block py-3 px-6 bg-[#FFC72C] hover:bg-[#E6B321] disabled:opacity-60 disabled:cursor-not-allowed text-[#17181A] text-[12px] font-bold uppercase tracking-widest rounded-lg transition-colors cursor-pointer"
                   >
                     {authLoading ? 'Creando cuenta...' : 'Crear cuenta gratis'}
                   </button>
@@ -4165,9 +4166,9 @@ export default function App() {
         <AnimatePresence>
           {toasts.map((toast) => {
             const toastStyles = {
-              success: { bg: 'bg-[#16793A]', icon: '✓' },
-              error: { bg: 'bg-[#991B1B]', icon: '✕' },
-              info: { bg: 'bg-[#2B44C7]', icon: 'ℹ' },
+              success: { bg: 'bg-[#1E7A46]', icon: '✓' },
+              error: { bg: 'bg-[#C0392B]', icon: '✕' },
+              info: { bg: 'bg-[#17181A]', icon: 'ℹ' },
             }[toast.type];
             return (
               <motion.div
@@ -4175,7 +4176,7 @@ export default function App() {
                 initial={{ y: 20, opacity: 0, scale: 0.95 }}
                 animate={{ y: 0, opacity: 1, scale: 1 }}
                 exit={{ y: -10, opacity: 0 }}
-                className={`${toastStyles.bg} text-white p-4 flex items-center space-x-3 shadow-xl border border-white/10 pointer-events-auto`}
+                className={`${toastStyles.bg} text-white p-4 flex items-center space-x-3 shadow-xl border border-white/10 rounded-lg pointer-events-auto`}
               >
                 <div className="text-white shrink-0 font-bold">{toastStyles.icon}</div>
                 <p className="text-[12px] font-sans font-medium">

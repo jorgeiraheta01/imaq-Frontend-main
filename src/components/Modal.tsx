@@ -28,7 +28,7 @@ export default function Modal({ open, onClose, children, maxWidth = 'max-w-[600p
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className={`bg-white border border-[#E2E2DE] rounded-none w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden relative z-10 ${contentClassName}`}
+            className={`bg-white border border-[#E4E1DA] rounded-xl w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden relative z-10 ${contentClassName}`}
           >
             {children}
           </motion.div>

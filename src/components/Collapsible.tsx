@@ -14,19 +14,19 @@ export default function Collapsible({ title, badge, defaultOpen = false, childre
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-t border-[#E2E2DE] pt-4">
+    <div className="border-t border-[#E4E1DA] pt-4">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between text-left cursor-pointer"
       >
-        <span className="text-[10px] font-bold text-[#717171] uppercase tracking-wider flex items-center gap-2">
+        <span className="text-[10px] font-bold text-[#6B6F76] uppercase tracking-wider flex items-center gap-2">
           {title}
           {badge !== undefined && badge !== '' && (
-            <span className="bg-[#F5F4F0] text-[#0F0F0F] text-[9px] font-bold px-1.5 py-0.5">{badge}</span>
+            <span className="bg-[#F6F5F2] text-[#17181A] rounded-md text-[9px] font-bold px-1.5 py-0.5">{badge}</span>
           )}
         </span>
-        <ChevronDown size={14} className={`text-[#717171] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`text-[#6B6F76] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <AnimatePresence initial={false}>
         {open && (

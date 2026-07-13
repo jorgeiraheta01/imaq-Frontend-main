@@ -50,31 +50,31 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0] flex items-center justify-center p-4 font-sans">
-      <div className="bg-white border border-[#E2E2DE] w-full max-w-[420px] p-8">
-        <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#0F0F0F] block mb-1">
-          i<span className="text-[#2B44C7]">M</span>aq
+    <div className="min-h-screen bg-[#F6F5F2] flex items-center justify-center p-4 font-sans">
+      <div className="bg-white border border-[#E4E1DA] rounded-xl w-full max-w-[420px] p-8">
+        <span className="text-[20px] font-extrabold tracking-[-0.03em] font-sans text-[#17181A] block mb-1">
+          i<span className="text-[#8A6A00]">M</span>aq
         </span>
-        <h1 className="text-[16px] font-bold text-[#0F0F0F] mb-6">Restablecer contraseña</h1>
+        <h1 className="text-[16px] font-bold text-[#17181A] mb-6">Restablecer contraseña</h1>
 
         {done ? (
-          <div className="bg-[#E8F5ED] border border-[#16793A]/20 p-4">
-            <p className="text-[13px] text-[#16793A]">
+          <div className="bg-[#E7F4EC] border border-[#1E7A46]/20 rounded-lg p-4">
+            <p className="text-[13px] text-[#1E7A46]">
               Contraseña actualizada correctamente. Redirigiendo al inicio…
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {!token && (
-              <div className="bg-[#FEF2F2] border border-[#991B1B]/20 p-3">
-                <p className="text-[12px] text-[#991B1B]">
+              <div className="bg-[#FBEAE7] border border-[#C0392B]/20 rounded-lg p-3">
+                <p className="text-[12px] text-[#C0392B]">
                   No se encontró un token en el link. Verifica que copiaste la URL completa del email.
                 </p>
               </div>
             )}
 
             <div>
-              <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+              <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                 Nueva contraseña
               </label>
               <input
@@ -83,12 +83,12 @@ export default function ResetPasswordPage() {
                 placeholder="Mínimo 8 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold uppercase text-[#717171] mb-1.5">
+              <label className="block text-[10px] font-bold uppercase text-[#6B6F76] mb-1.5">
                 Confirmar contraseña
               </label>
               <input
@@ -97,21 +97,21 @@ export default function ResetPasswordPage() {
                 placeholder="Repite la contraseña"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-white border border-[#E2E2DE] text-[#0F0F0F] text-[13px] font-medium p-3 focus:border-[#2B44C7] focus:outline-none"
+                className="w-full bg-white border border-[#E4E1DA] rounded-lg text-[#17181A] text-[13px] font-medium p-3 focus:border-[#FFC72C] focus:outline-none"
               />
             </div>
 
-            {error && <p className="text-[12px] text-[#991B1B]">{error}</p>}
+            {error && <p className="text-[12px] text-[#C0392B]">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-[#0F0F0F] hover:bg-[#3A3A3A] disabled:opacity-60 text-white text-[12px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+              className="mx-auto min-w-[200px] block py-3 px-6 bg-[#FFC72C] hover:bg-[#E6B321] disabled:opacity-60 text-[#17181A] text-[12px] font-bold uppercase tracking-widest rounded-lg transition-colors cursor-pointer"
             >
               {loading ? 'Guardando...' : 'Restablecer contraseña'}
             </button>
 
-            <a href="/" className="block text-center text-[12px] font-semibold text-[#2B44C7] hover:underline">
+            <a href="/" className="block text-center text-[12px] font-semibold text-[#17181A] hover:text-[#8A6A00]">
               Volver al inicio
             </a>
           </form>
